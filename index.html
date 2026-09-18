@@ -306,48 +306,76 @@
     if(!document.getElementById('dash_kasa_listesi')) return;
     let seciliYil = document.getElementById('dash_yil_secici') ? document.getElementById('dash_yil_secici').value : new Date().getFullYear().toString();
 
+    let usdKur = parseFloat(document.getElementById('dash_usd_kur') ? document.getElementById('dash_usd_kur').value : (localStorage.getItem('ev_usd_try') || 34.50));
+    let eurKur = parseFloat(document.getElementById('dash_eur_kur') ? document.getElementById('dash_eur_kur').value : (localStorage.getItem('ev_eur_try') || 38.20));
+
     // Banka ve Kasa
     let bankalarHtml = '';
     bankaListesi.forEach(b => {
-        let sembol = b.paraBirimi === 'USD' ? '$' : '€';
+        let sembol = b.paraBirimi === 'USD' ? '$' : (b.paraBirimi === 'EUR' ? '€' : '₺');
         bankalarHtml += `<div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
             <span class="text-truncate text-secondary" style="font-size: 0.85rem;">${b.hesapAdi}</span>
-            <strong class="text-dark" style="font-size: 0.95rem;">${b.bakiye.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} <span class="text-muted fw-normal">${sembol}</span></strong></div>`;
+            <strong class="text-dark" style="font-size: 0.95rem;">${b.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2})} <span class="text-muted fw-normal">${sembol}</span></strong></div>`;
     });
 
-    // Cari Rozetler
-    let alacakHtml = ''; let borcHtml = '';
+    // Cari Rozetler (Top 5 ve Toplam Hesaplama)
+    let alacaklar = []; let borclar = [];
+    let toplamAlacakTry = 0; let toplamBorcTry = 0;
+
     cariListesi.forEach(c => {
         let bakiye = c.bakiye || 0;
-        let sembol = (c.paraBirimi === 'USD') ? '$' : '€';
-        let cariSatiri = `<div class="d-flex justify-content-between align-items-center pb-2 mb-2 border-bottom border-light">
-            <span class="text-truncate text-secondary" style="font-size: 0.85rem;" title="${c.unvan}">${c.unvan}</span>
-            <strong class="text-dark" style="font-size: 0.95rem;">${Math.abs(bakiye).toLocaleString('en-US', {minimumFractionDigits: 2})} <span class="text-muted fw-normal">${sembol}</span></strong></div>`;
-        if(bakiye > 0) alacakHtml += cariSatiri; else if(bakiye < 0) borcHtml += cariSatiri;
+        let sembol = c.paraBirimi === 'USD' ? '$' : (c.paraBirimi === 'EUR' ? '€' : '₺');
+        let kurCarpan = c.paraBirimi === 'USD' ? usdKur : (c.paraBirimi === 'EUR' ? eurKur : 1);
+        let bakiyeTry = Math.abs(bakiye) * kurCarpan;
+
+        if(bakiye > 0) {
+            alacaklar.push({ unvan: c.unvan, bakiye: bakiye, sembol: sembol, bakiyeTry: bakiyeTry });
+            toplamAlacakTry += bakiyeTry;
+        } else if(bakiye < 0) {
+            borclar.push({ unvan: c.unvan, bakiye: Math.abs(bakiye), sembol: sembol, bakiyeTry: bakiyeTry });
+            toplamBorcTry += bakiyeTry;
+        }
+    });
+
+    alacaklar.sort((a,b) => b.bakiyeTry - a.bakiyeTry);
+    borclar.sort((a,b) => b.bakiyeTry - a.bakiyeTry);
+
+    let alacakHtml = `<div class="mb-2 pb-2 border-bottom border-light"><small class="text-muted d-block">Toplam Tahmini Alacak</small><h5 class="fw-bold text-success mb-0">${toplamAlacakTry.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</h5></div>`;
+    let borcHtml = `<div class="mb-2 pb-2 border-bottom border-light"><small class="text-muted d-block">Toplam Tahmini Borç</small><h5 class="fw-bold text-danger mb-0">${toplamBorcTry.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</h5></div>`;
+
+    alacaklar.slice(0, 5).forEach(c => {
+        alacakHtml += `<div class="d-flex justify-content-between align-items-center pb-2 mb-2 border-bottom border-light">
+            <span class="text-truncate text-secondary" style="font-size: 0.8rem; max-width: 130px;" title="${c.unvan}">${c.unvan}</span>
+            <strong class="text-dark" style="font-size: 0.9rem;">${c.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2})} <span class="text-muted fw-normal">${c.sembol}</span></strong></div>`;
+    });
+    borclar.slice(0, 5).forEach(c => {
+        borcHtml += `<div class="d-flex justify-content-between align-items-center pb-2 mb-2 border-bottom border-light">
+            <span class="text-truncate text-secondary" style="font-size: 0.8rem; max-width: 130px;" title="${c.unvan}">${c.unvan}</span>
+            <strong class="text-dark" style="font-size: 0.9rem;">${c.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2})} <span class="text-muted fw-normal">${c.sembol}</span></strong></div>`;
     });
 
     document.getElementById('dash_kasa_listesi').innerHTML = bankalarHtml || '<span class="text-muted small">Kayıtlı veri yok.</span>';
-    document.getElementById('dash_alacak_rozetler').innerHTML = alacakHtml || '<span class="text-muted small">Alacak bulunmuyor.</span>';
-    document.getElementById('dash_borc_rozetler').innerHTML = borcHtml || '<span class="text-muted small">Borç bulunmuyor.</span>';
+    document.getElementById('dash_alacak_rozetler').innerHTML = alacaklar.length > 0 ? alacakHtml : '<span class="text-muted small">Alacak bulunmuyor.</span>';
+    document.getElementById('dash_borc_rozetler').innerHTML = borclar.length > 0 ? borcHtml : '<span class="text-muted small">Borç bulunmuyor.</span>';
 
     // Kâr/Zarar Hesaplama
     let aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
     let aylikVeri = Array(12).fill(null).map(() => ({ gelir: 0, gider: 0 }));
     let giderDagilimi = {};
-    let usdKur = parseFloat(document.getElementById('dash_usd_kur') ? document.getElementById('dash_usd_kur').value : 0.92) || 0.92;
 
     faturaListesi.forEach(f => {
         if(!f.tarih) return;
         let [y, m] = f.tarih.split('-');
         if(y === seciliYil) { 
             let ayIndex = parseInt(m) - 1;
-            let tutarEur = f.paraBirimi === 'USD' ? (f.toplamTutar * usdKur) : f.toplamTutar;
+            let kurCarpan = f.paraBirimi === 'USD' ? usdKur : (f.paraBirimi === 'EUR' ? eurKur : 1);
+            let tutarTry = f.toplamTutar * kurCarpan;
             
-            if(f.tur === 'Satis' || f.tur === 'Ihracat' || f.tur === 'YerelSatis') aylikVeri[ayIndex].gelir += tutarEur;
+            if(f.tur === 'Satis' || f.tur === 'Ihracat' || f.tur === 'YerelSatis') aylikVeri[ayIndex].gelir += tutarTry;
             else if(f.tur === 'Alim') {
-                aylikVeri[ayIndex].gider += tutarEur;
+                aylikVeri[ayIndex].gider += tutarTry;
                 let kat = f.kategori || 'Genel Gider';
-                giderDagilimi[kat] = (giderDagilimi[kat] || 0) + tutarEur;
+                giderDagilimi[kat] = (giderDagilimi[kat] || 0) + tutarTry;
             }
         }
     });
@@ -361,22 +389,22 @@
             let renk = net > 0 ? 'text-success' : (net < 0 ? 'text-danger' : 'text-muted');
             kzHtml += `<tr>
                 <td class="text-muted fw-bold small">${aylar[index]}</td>
-                <td class="text-end text-success small">+${veri.gelir.toFixed(2)} €</td>
-                <td class="text-end text-danger small">-${veri.gider.toFixed(2)} €</td>
-                <td class="text-end fw-bold ${renk} small">${net > 0 ? '+' : ''}${net.toFixed(2)} €</td>
+                <td class="text-end text-success small">+${veri.gelir.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td>
+                <td class="text-end text-danger small">-${veri.gider.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td>
+                <td class="text-end fw-bold ${renk} small">${net > 0 ? '+' : ''}${net.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td>
             </tr>`;
         }
     });
 
-    if(kzHtml === '') kzHtml = '<tr><td colspan="4" class="text-center text-muted small py-3">Bu yıla ait Euro cinsi fatura kaydı bulunamadı.</td></tr>';
+    if(kzHtml === '') kzHtml = '<tr><td colspan="4" class="text-center text-muted small py-3">Bu yıla ait fatura kaydı bulunamadı.</td></tr>';
     else {
         let genelNet = toplamGelir - toplamGider;
         let genelRenk = genelNet > 0 ? 'text-success' : (genelNet < 0 ? 'text-danger' : 'text-dark');
         kzHtml += `<tr class="table-light border-top border-2 border-dark">
             <td class="fw-bold small">GENEL TOPLAM</td>
-            <td class="text-end text-success fw-bold small">+${toplamGelir.toFixed(2)} €</td>
-            <td class="text-end text-danger fw-bold small">-${toplamGider.toFixed(2)} €</td>
-            <td class="text-end fw-bold ${genelRenk} fs-6">${genelNet > 0 ? '+' : ''}${genelNet.toFixed(2)} €</td>
+            <td class="text-end text-success fw-bold small">+${toplamGelir.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td>
+            <td class="text-end text-danger fw-bold small">-${toplamGider.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td>
+            <td class="text-end fw-bold ${genelRenk} fs-6">${genelNet > 0 ? '+' : ''}${genelNet.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td>
         </tr>`;
     }
     document.getElementById('dash_kar_zarar').innerHTML = kzHtml;
@@ -567,8 +595,8 @@
         if (bakiye > 0) bDurum = "Tahsil Edilecek (Alacağımız)";
         else if (bakiye < 0) bDurum = "Ödenecek (Borcumuz)";
 
-        let birim = cari.paraBirimi || 'EUR';
-        let sembol = birim === 'USD' ? '$' : '€';
+        let birim = cari.paraBirimi || 'TRY';
+        let sembol = birim === 'USD' ? '$' : (birim === 'EUR' ? '€' : '₺');
         
         let paraBirimiRengi = birim === 'USD' ? 'background-color: #f39c12; color: #fff;' : 'background-color: #2c3e50; color: #fff;';
         let leftBorderColor = index % 2 === 0 ? '#2c3e50' : '#f39c12';
@@ -1211,48 +1239,54 @@
   window.bankalariCiz = function() {
       const bTbody = document.getElementById('bankaTabloGövdesi');
       const kTbody = document.getElementById('kasaTabloGövdesi');
+      const kkTbody = document.getElementById('krediKartiTabloGövdesi');
       if (!bTbody || !kTbody) return; 
-      bTbody.innerHTML = ""; kTbody.innerHTML = ""; 
+      bTbody.innerHTML = ""; kTbody.innerHTML = ""; if(kkTbody) kkTbody.innerHTML = "";
       
       bankaListesi.forEach((banka, index) => {
           let bakiye = banka.bakiye || 0;
           let isKasa = banka.tur === 'Kasa';
+          let isKK = banka.tur === 'Kredi Karti';
+          let sembol = banka.paraBirimi === 'USD' ? '$' : (banka.paraBirimi === 'EUR' ? '€' : '₺');
           
           let hesapNoGosterimi = '-';
           if (!isKasa) {
               let nolar = [];
-              if (banka.iban) nolar.push(`<span class="text-muted small">IBAN:</span> ${banka.iban}`);
-              if (banka.yerelHesap) nolar.push(`<span class="text-muted small">Yerel:</span> ${banka.yerelHesap}`);
+              if (banka.iban) nolar.push(`<span class="text-muted small">${isKK ? 'Kart No' : 'IBAN'}:</span> ${banka.iban}`);
+              if (banka.yerelHesap) nolar.push(`<span class="text-muted small">${isKK ? 'Limit' : 'Yerel'}:</span> ${banka.yerelHesap}`);
               hesapNoGosterimi = nolar.length > 0 ? nolar.join('<br>') : '-';
           }
           
-          let leftBorderColor = isKasa ? '#f39c12' : '#2c3e50';
-          let iconColor = isKasa ? '#f39c12' : '#2c3e50';
+          let leftBorderColor = isKasa ? '#f39c12' : (isKK ? '#0dcaf0' : '#2c3e50');
+          let iconColor = isKasa ? '#f39c12' : (isKK ? '#0dcaf0' : '#2c3e50');
+          let iconClass = isKasa ? 'fa-box' : (isKK ? 'fa-credit-card' : 'fa-university');
 
           let html = `
               <tr class="cursor-pointer bg-white shadow-sm rounded mb-2" onclick="if(event.target.tagName !== 'BUTTON' && event.target.tagName !== 'I') bankaEkstreAc('${banka.id}')">
                   <td class="ps-3 py-3" style="border-left: 4px solid ${leftBorderColor};">
                       <div class="d-flex align-items-center">
-                          <div class="me-3 fs-3" style="color: ${iconColor};"><i class="fas ${isKasa ? 'fa-box' : 'fa-university'}"></i></div>
+                          <div class="me-3 fs-3" style="color: ${iconColor};"><i class="fas ${iconClass}"></i></div>
                           <div><span class="fw-bold" style="color: #2c3e50;">${banka.hesapAdi}</span><br><small class="text-muted">${banka.bankaAdi || (isKasa ? 'Nakit Kasa' : '')}</small></div>
                       </div>
                   </td>
                   <td class="py-3">${hesapNoGosterimi}</td>
-                  <td class="py-3"><span class="badge rounded-pill px-3 py-2" style="background-color: ${iconColor};">${banka.paraBirimi}</span></td>
-                  <td class="fw-bold fs-5 py-3" style="color: ${iconColor};">${bakiye.toFixed(2)} ${banka.paraBirimi === 'USD' ? '$' : '€'}</td>
+                  <td class="py-3"><span class="badge rounded-pill px-3 py-2 text-white" style="background-color: ${iconColor};">${banka.paraBirimi}</span></td>
+                  <td class="fw-bold fs-5 py-3" style="color: ${iconColor};">${bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ${sembol}</td>
                   <td class="py-3">
-                      <button class="btn btn-sm text-white py-0" style="background-color: #2ecc71;" onclick="islemModalAc('Tahsilat', '${banka.id}')"><i class="fas fa-arrow-down"></i> Tahsilat</button>
-                      <button class="btn btn-sm text-white py-0 me-2" style="background-color: #e74c3c;" onclick="islemModalAc('Odeme', '${banka.id}')"><i class="fas fa-arrow-up"></i> Ödeme</button>
+                      <button class="btn btn-sm text-white py-0" style="background-color: #2ecc71;" onclick="islemModalAc('Tahsilat', '${banka.id}')" title="${isKK ? 'Karta Ödeme Yap (Borç Düşer)' : 'Tahsilat Al'}"><i class="fas fa-arrow-down"></i> ${isKK ? 'Borç Öde' : 'Tahsilat'}</button>
+                      <button class="btn btn-sm text-white py-0 me-2" style="background-color: #e74c3c;" onclick="islemModalAc('Odeme', '${banka.id}')" title="${isKK ? 'Karttan Harcama (Borç Artar)' : 'Ödeme Yap'}"><i class="fas fa-arrow-up"></i> ${isKK ? 'Harcama' : 'Ödeme'}</button>
                       <button class="btn btn-sm btn-outline-secondary py-0" onclick="bankaDuzenleAc('${banka.id}')"><i class="fas fa-edit"></i></button>
                       <button class="btn btn-sm btn-outline-danger py-0" onclick="bankaSil('${banka.id}')"><i class="fas fa-trash"></i></button>
                   </td>
               </tr>
           `;
           if(isKasa) kTbody.innerHTML += html;
+          else if(isKK && kkTbody) kkTbody.innerHTML += html;
           else bTbody.innerHTML += html;
       });
       if(bTbody.innerHTML === '') bTbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">Banka hesabı eklenmemiş.</td></tr>';
       if(kTbody.innerHTML === '') kTbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">Kasa hesabı eklenmemiş.</td></tr>';
+      if(kkTbody && kkTbody.innerHTML === '') kkTbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">Kredi kartı eklenmemiş.</td></tr>';
   };
 
   window.bankaDuzenleAc = function(id) {
@@ -2310,6 +2344,16 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                     </table>
                 </div>
 
+                <h6 class="text-info border-bottom pb-2 mb-3 mt-4"><i class="fas fa-credit-card"></i> Şirket Kredi Kartları</h6>
+                <div class="table-responsive bg-white p-2 rounded shadow-sm mb-4">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr><th>Kart Adı</th><th>Kart Bilgisi / Limit</th><th>Para Birimi</th><th>Güncel Borç Bakiye</th><th>İşlemler</th></tr>
+                        </thead>
+                        <tbody id="krediKartiTabloGövdesi"></tbody>
+                    </table>
+                </div>
+
                 <h6 class="text-warning border-bottom pb-2 mb-3 mt-4"><i class="fas fa-box"></i> Nakit Kasalar</h6>
                 <div class="table-responsive bg-white p-2 rounded shadow-sm mb-4">
                     <table class="table table-hover align-middle mb-0">
@@ -2324,7 +2368,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                     <div class="modal-dialog">
                         <div class="modal-content">
                             <div class="modal-header bg-dark text-white">
-                                <h5 class="modal-title">Yeni Banka/Kasa Hesabı</h5>
+                                <h5 class="modal-title">Yeni Banka/Kasa/Kart Ekle</h5>
                                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                             </div>
                             <div class="modal-body">
@@ -2333,7 +2377,11 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                                     <div class="row mb-3">
                                         <div class="col-md-6">
                                             <label class="form-label">Hesap Türü *</label>
-                                            <select class="form-select" id="b_tur"><option value="Banka">Banka Hesabı</option><option value="Kasa">Nakit Kasa</option></select>
+                                            <select class="form-select" id="b_tur">
+                                                <option value="Banka">Banka Hesabı</option>
+                                                <option value="Kredi Karti">Şirket Kredi Kartı</option>
+                                                <option value="Kasa">Nakit Kasa</option>
+                                            </select>
                                         </div>
                                         <div class="col-md-6">
                                             <label class="form-label">Para Birimi *</label>
