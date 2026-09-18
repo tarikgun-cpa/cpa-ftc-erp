@@ -688,7 +688,7 @@
         if(h.tipKodu === 'islem') {
             silButon = `
                 <button class="btn btn-sm btn-outline-secondary py-0 me-1" onclick="makbuzYazdir('${h.id}', '${cariId}', '${h.bankaId}', '${h.orijinalTur}', ${h.mutlakTutar}, '${h.tarih}', '${encodeURIComponent(h.aciklama)}', 'ENG')" title="İngilizce Makbuz"><i class="fas fa-file-invoice-dollar"></i> EN</button>
-                <button class="btn btn-sm btn-outline-secondary py-0 me-1" onclick="makbuzYazdir('${h.id}', '${cariId}', '${h.bankaId}', '${h.orijinalTur}', ${h.mutlakTutar}, '${h.tarih}', '${encodeURIComponent(h.aciklama)}', 'MNE')" title="Karadağca Makbuz"><i class="fas fa-file-invoice-dollar"></i> MNE</button>
+                <button class="btn btn-sm btn-outline-secondary py-0 me-1" onclick="makbuzYazdir('${h.id}', '${cariId}', '${h.bankaId}', '${h.orijinalTur}', ${h.mutlakTutar}, '${h.tarih}', '${encodeURIComponent(h.aciklama)}', 'MNE')" title="Türkçe Makbuz"><i class="fas fa-file-invoice-dollar"></i> MNE</button>
                 <button class="btn btn-sm btn-outline-danger py-0" onclick="islemSil('${h.id}', '${cariId}', '${h.bankaId}', '${h.orijinalTur}', ${h.mutlakTutar})" title="İşlemi sil"><i class="fas fa-trash"></i></button>
             `;
         } else {
@@ -1683,7 +1683,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
 
                   <h6 class="border-bottom pb-2 mt-3 text-primary"><i class="fas fa-university"></i> Banka Bilgileri</h6>
                   <div class="col-md-12 mb-3"><label class="text-muted small mb-1">Banka Adı ve EUR IBAN (Uluslararası)</label><div class="d-flex align-items-center"><strong class="fs-6 me-3">${v.banka || ''} - ${v.iban || '-'}</strong></div></div>
-                  <div class="col-md-6 mb-3"><label class="text-muted small mb-1">Yerel Hesap No (Karadağ İçi)</label><div class="d-flex align-items-center"><strong class="fs-6 me-3">${v.yerelHesap || '-'}</strong></div></div>
+                  <div class="col-md-6 mb-3"><label class="text-muted small mb-1">Yerel Hesap No (Türkiye İçi)</label><div class="d-flex align-items-center"><strong class="fs-6 me-3">${v.yerelHesap || '-'}</strong></div></div>
                   <div class="col-md-6 mb-3"><label class="text-muted small mb-1">USD IBAN</label><div class="d-flex align-items-center"><strong class="fs-6 me-3">${v.usdIban || '-'}</strong></div></div>
                   <div class="col-md-12"><label class="text-muted small mb-1">BIC / SWIFT Kodu</label><div class="d-flex align-items-center"><strong class="fs-6 me-3">${v.swift || '-'}</strong></div></div>
                   
@@ -1794,7 +1794,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
           cevapMetni = cevapMetni.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
 
           await addDoc(collection(db, "aiGecmis"), {
-              soru: otomatikMi ? "Sistem: Karadağ Gündemini Tara" : soru,
+              soru: otomatikMi ? "Sistem: Türkiye Gündemini Tara" : soru,
               cevap: cevapMetni,
               tarih: serverTimestamp()
           });
@@ -1981,7 +1981,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                         <label class="form-label text-muted small fw-bold">Bölge</label>
                         <select id="cariBolgeFiltre" class="form-select" onchange="tabloyuCiz()">
                             <option value="Hepsi">Tümü (Yerli ve Yabancı)</option>
-                            <option value="Yerli">Yerli Firmalar (Karadağ)</option>
+                            <option value="Yerli">Yerli Firmalar (Türkiye)</option>
                             <option value="Yabanci">Yabancı Firmalar</option>
                         </select>
                     </div>
@@ -2005,10 +2005,10 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                                     <div class="col-md-12 mb-3"><label class="form-label">Para Birimi *</label><select class="form-select" id="c_paraBirimi"><option value="EUR">Euro (€)</option><option value="USD">Dolar ($)</option></select></div>
                                     <div class="row mb-3">
                                         <div class="col-md-6"><label class="form-label">Cari Grubu *</label><select class="form-select" id="c_grup"><option value="Alici">Alıcı</option><option value="Satici">Satıcı</option></select></div>
-                                        <div class="col-md-6"><label class="form-label">Bölge *</label><select class="form-select" id="c_bolge"><option value="Yerli">Yerli (Karadağ)</option><option value="Yabanci">Yabancı (Yurt Dışı)</option></select></div>
+                                        <div class="col-md-6"><label class="form-label">Bölge *</label><select class="form-select" id="c_bolge"><option value="Yerli">Yerli (Türkiye)</option><option value="Yabanci">Yabancı (Yurt Dışı)</option></select></div>
                                     </div>
                                     <div class="row mb-3">
-                                        <div class="col-md-6"><label class="form-label">Ülke</label><input type="text" class="form-control" id="c_ulke" value="Montenegro"></div>
+                                        <div class="col-md-6"><label class="form-label">Ülke</label><input type="text" class="form-control" id="c_ulke" value="Türkiye"></div>
                                         <div class="col-md-6"><label class="form-label">Vergi No / PIB *</label><input type="text" class="form-control" id="c_vergiNo"></div>
                                     </div>
                                     <h6 class="mt-4 border-bottom pb-2">Banka ve İletişim</h6>
@@ -2136,7 +2136,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                                         <div class="col-md-6"><label class="form-label text-muted small mb-1">Para Birimi *</label><select class="form-select" id="p_paraBirimi"><option value="EUR">Euro (€)</option><option value="USD">Dolar ($)</option></select></div>
                                     </div>
                                     <div class="mb-3"><label class="form-label text-muted small mb-1">Hizmet / Danışmanlık Açıklaması *</label><textarea class="form-control" id="p_aciklama" rows="2" placeholder="Consultancy services for..."></textarea></div>
-                                    <div class="mb-3"><label class="form-label text-muted small mb-1">Yazdırma Dili *</label><select class="form-select" id="p_dil"><option value="ENG">İngilizce (English)</option><option value="MNE">Karadağca (Crnogorski)</option></select></div>
+                                    <div class="mb-3"><label class="form-label text-muted small mb-1">Yazdırma Dili *</label><select class="form-select" id="p_dil"><option value="ENG">İngilizce (English)</option><option value="TR">Türkçe (Crnogorski)</option></select></div>
                                     <div class="alert alert-warning small py-2 mb-0"><i class="fas fa-info-circle"></i> Proformalar sistem bakiyesini etkilemez. Kaydettikten sonra listeden düzenleyebilir veya yazdırabilirsiniz.</div>
                                 </form>
                             </div>
@@ -2215,7 +2215,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                                             <input type="text" class="form-control" id="b_iban" placeholder="ME...">
                                         </div>
                                         <div class="col-md-6">
-                                            <label class="form-label">Yerel Hesap No (Karadağ İçi)</label>
+                                            <label class="form-label">Yerel Hesap No (Türkiye İçi)</label>
                                             <input type="text" class="form-control" id="b_yerelHesap" placeholder="520-...">
                                         </div>
                                     </div>
@@ -2324,7 +2324,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                     <h2>Vergi ve Yasal Ödemeler</h2>
                     <div>
                         <button class="btn btn-warning shadow-sm fw-bold me-2" onclick="doprinosiOtomatikEkle()">
-                            <i class="fas fa-bolt"></i> Aylık Doprinosi (SGK) Ekle
+                            <i class="fas fa-bolt"></i> Aylık SGK / SGDP Ekle
                         </button>
                         <button class="btn btn-primary shadow-sm" onclick="vergiModalAc()">
                             <i class="fas fa-plus"></i> Yeni Vergi Ekle
@@ -2545,7 +2545,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                                         <div class="col-md-12"><label class="form-label small">EUR IBAN Numarası (Uluslararası / Swift İçin)</label><input type="text" class="form-control form-control-sm" id="k_iban" placeholder="ME..."></div>
                                     </div>
                                     <div class="row mb-2">
-                                        <div class="col-md-6"><label class="form-label small">Yerel Hesap No (Karadağ İçi)</label><input type="text" class="form-control form-control-sm" id="k_yerelHesap" placeholder="520-..."></div>
+                                        <div class="col-md-6"><label class="form-label small">Yerel Hesap No</label><input type="text" class="form-control form-control-sm" id="k_yerelHesap" placeholder="520-..."></div>
                                         <div class="col-md-6"><label class="form-label small">USD IBAN Numarası</label><input type="text" class="form-control form-control-sm" id="k_usdIban"></div>
                                     </div>
                                     <div class="row mb-2">
@@ -2625,12 +2625,12 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                                 <div class="text-center text-muted mt-5 mb-4">
                                     <i class="fas fa-shield-alt fa-3x mb-3 text-primary opacity-50"></i><br>
                                     <h6 class="text-dark fw-bold">CPA FTC Akıllı Ajanına Hoş Geldiniz</h6>
-                                    Karadağ yasaları, AB uyum süreçleri veya şirket yönetimi hakkında sorular sorabilir<br>ya da yandaki hızlı sorgu butonlarını kullanabilirsiniz.
+                                    Türkiye yasaları, AB uyum süreçleri veya şirket yönetimi hakkında sorular sorabilir<br>ya da yandaki hızlı sorgu butonlarını kullanabilirsiniz.
                                 </div>
                             </div>
                             <div class="card-footer bg-white border-top p-3" style="border-radius: 0 0 8px 8px;">
                                 <div class="input-group">
-                                    <textarea id="ai_soru" class="form-control bg-light border-0" placeholder="Örn: Karadağ'da yeni bir yabancı işçi çalıştırmanın maliyeti nedir?" rows="2" style="resize:none; box-shadow:none;"></textarea>
+                                    <textarea id="ai_soru" class="form-control bg-light border-0" placeholder="Örn: Türkiye'de yeni bir yabancı işçi çalıştırmanın maliyeti nedir?" rows="2" style="resize:none; box-shadow:none;"></textarea>
                                     <button class="btn btn-primary px-4" id="ai_soru_buton" onclick="geminiSoruSor()">
                                         <i class="fas fa-paper-plane me-1"></i> Gönder
                                     </button>
