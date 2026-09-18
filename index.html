@@ -1079,12 +1079,13 @@
       const f = faturaListesi.find(x => x.id === id);
       const cariSelect = document.getElementById('f_cariId');
       cariSelect.innerHTML = '<option value="">-- Cari Seçiniz --</option>';
+      cariSelect.innerHTML += `<option value="MUHTELIF_SATICI" class="fw-bold text-primary" ${f.cariId === 'MUHTELIF_SATICI' ? 'selected' : ''}>-- CARİSİZ İŞLEM (Muhtelif Satıcı / Fiş) --</option>`;
       cariListesi.forEach(c => { cariSelect.innerHTML += `<option value="${c.id}" ${c.id === f.cariId ? 'selected' : ''}>${c.unvan}</option>`; });
 
       document.getElementById('f_id').value = f.id; 
       document.getElementById('f_tur').value = f.tur; 
       document.getElementById('f_paraBirimi').value = f.paraBirimi || 'EUR';
-      document.getElementById('f_faturaNo').value = f.faturaNo; 
+      document.getElementById('f_faturaNo').value = f.faturaNo || ''; 
       document.getElementById('f_tarih').value = f.tarih; 
       document.getElementById('f_aciklama').value = f.aciklama || '';
       
@@ -1097,6 +1098,43 @@
       window.hesaplaKdv();
       document.querySelector("#yeniFaturaModal .modal-title").innerHTML = "Fatura Düzenle";
       bootstrap.Modal.getOrCreateInstance(document.getElementById('yeniFaturaModal')).show();
+  };
+
+  window.faturaKopyalaAc = function(id) {
+      const f = faturaListesi.find(x => x.id === id);
+      const cariSelect = document.getElementById('f_cariId');
+      cariSelect.innerHTML = '<option value="">-- Cari Seçiniz --</option>';
+      cariSelect.innerHTML += `<option value="MUHTELIF_SATICI" class="fw-bold text-primary" ${f.cariId === 'MUHTELIF_SATICI' ? 'selected' : ''}>-- CARİSİZ İŞLEM (Muhtelif Satıcı / Fiş) --</option>`;
+      cariListesi.forEach(c => { cariSelect.innerHTML += `<option value="${c.id}" ${c.id === f.cariId ? 'selected' : ''}>${c.unvan}</option>`; });
+
+      document.getElementById('f_id').value = ''; 
+      document.getElementById('f_tur').value = f.tur; 
+      document.getElementById('f_paraBirimi').value = f.paraBirimi || 'EUR';
+      document.getElementById('f_faturaNo').value = ''; 
+      document.getElementById('f_tarih').value = new Date().toISOString().split('T')[0]; 
+      document.getElementById('f_aciklama').value = f.aciklama || '';
+      
+      window.kategorileriDoldur();
+      if(typeof window.fisSecimiKontrol === 'function') window.fisSecimiKontrol();
+      document.getElementById('f_kategori').value = f.kategori || '';
+      
+      document.getElementById('f_tutar').value = f.tutar; 
+      document.getElementById('f_kdvOran').value = f.kdvOran;
+      window.hesaplaKdv();
+      document.querySelector("#yeniFaturaModal .modal-title").innerHTML = "<i class='fas fa-copy me-2'></i>Fatura Çoğalt (Taslak)";
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('yeniFaturaModal')).show();
+  };
+
+  window.faturaSil = async function(faturaId, cariId, tur, toplamTutar) {
+      if(!confirm("Bu faturayı silmek istediğinize emin misiniz? Cari bakiye otomatik olarak geri alınacaktır.")) return;
+      try {
+          let tutar = Math.abs(parseFloat(toplamTutar)); 
+          await deleteDoc(doc(db, "faturalar", faturaId));
+          if(cariId !== 'MUHTELIF_SATICI' && tur !== 'Fis_OKC') {
+              const bakiyeDegisimi = (tur === 'Satis' || tur === 'Ihracat' || tur === 'YerelSatis') ? -tutar : tutar;
+              await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(bakiyeDegisimi) });
+          }
+      } catch(e) { alert("Hata: " + e.message); }
   };
 
   window.faturaKopyalaAc = function(id) {
@@ -1223,19 +1261,16 @@
       document.getElementById('yeniFaturaForm').reset(); document.getElementById('f_id').value = '';
       const cariSelect = document.getElementById('f_cariId');
       cariSelect.innerHTML = '<option value="">-- Cari Seçiniz --</option>';
+      cariSelect.innerHTML += '<option value="MUHTELIF_SATICI" class="fw-bold text-primary">-- CARİSİZ İŞLEM (Muhtelif Satıcı / Fiş) --</option>';
       cariListesi.forEach(cari => { cariSelect.innerHTML += `<option value="${cari.id}">${cari.unvan} (${cari.grup === 'Alici' ? 'Müşteri' : 'Tedarikçi'})</option>`; });
       
-      // Aktif sekmeyi bul ve fatura yönünü otomatik seç
       let aktifSekme = document.querySelector('.fatura-tab-btn.active');
-      if(aktifSekme) {
-          document.getElementById('f_tur').value = aktifSekme.getAttribute('data-tur');
-      }
+      if(aktifSekme) { document.getElementById('f_tur').value = aktifSekme.getAttribute('data-tur'); }
 
-      window.kategorileriDoldur(); // Modal ilk açıldığında listeyi oluştur
-      document.getElementById('f_kategori').value = ''; // Inputu temizle
-      
+      window.kategorileriDoldur(); 
+      document.getElementById('f_kategori').value = ''; 
       document.querySelector("#yeniFaturaModal .modal-title").innerHTML = "Yeni Fatura İşle";
-      new bootstrap.Modal(document.getElementById('yeniFaturaModal')).show();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('yeniFaturaModal')).show();
   };
 
   window.hesaplaKdv = function() {
@@ -1246,7 +1281,7 @@
 
   window.faturaKaydet = async function() {
       const id = document.getElementById('f_id').value; 
-      const cariId = document.getElementById('f_cariId').value;
+      let cariId = document.getElementById('f_cariId').value;
       const bankaId = document.getElementById('f_bankaId') ? document.getElementById('f_bankaId').value : null;
       const faturaNo = document.getElementById('f_faturaNo').value; const tarih = document.getElementById('f_tarih').value;
       const tur = document.getElementById('f_tur').value; const paraBirimi = document.getElementById('f_paraBirimi').value;
@@ -1258,31 +1293,31 @@
       let defaultKat = isSatis ? 'Danışmanlık Geliri' : 'Genel Gider';
       const kategori = document.getElementById('f_kategori').value.trim() || defaultKat;
 
-      if(cariId === "" || faturaNo.trim() === "" || tarih === "" || tutar <= 0) { alert("Lütfen Cari, Fatura No, Tarih ve Tutar giriniz."); return; }
+      if(tur === 'Fis_OKC' && cariId === "") { cariId = 'MUHTELIF_SATICI'; }
+      if(cariId === "" || faturaNo.trim() === "" || tarih === "" || tutar <= 0) { alert("Lütfen Cari, Fatura No, Tarih ve Tutar alanlarını kontrol ediniz."); return; }
       if(tur === 'Fis_OKC' && !bankaId) { alert("Fiş giderleri peşin kabul edildiğinden lütfen ödemenin yapıldığı kasa/kredi kartını seçin."); return; }
       
       const kaydetBtn = document.querySelector("#yeniFaturaModal .btn-primary"); kaydetBtn.innerHTML = "İşleniyor..."; kaydetBtn.disabled = true;
 
       try {
-          if(tur === 'Fis_OKC' && !bankaId) { alert("Lütfen harcamanın yapıldığı kasa veya kredi kartını seçin."); return; }
-          const secilenCari = cariListesi.find(c => c.id === cariId) || {unvan: 'Bilinmeyen'};
+          const secilenCari = cariId === 'MUHTELIF_SATICI' ? {unvan: 'Muhtelif Satıcı (Fiş/Kartsız)'} : (cariListesi.find(c => c.id === cariId) || {unvan: 'Bilinmeyen'});
           const yeniBakiyeDegisimi = isSatis ? toplamTutar : -toplamTutar; 
 
           if (id) {
               const eskiFatura = faturaListesi.find(f => f.id === id);
-              if(eskiFatura) {
+              if(eskiFatura && eskiFatura.tur !== 'Fis_OKC' && eskiFatura.cariId !== 'MUHTELIF_SATICI') {
                   const eskiBakiyeIadesi = (eskiFatura.tur === 'Satis' || eskiFatura.tur === 'Ihracat' || eskiFatura.tur === 'YerelSatis') ? -eskiFatura.toplamTutar : eskiFatura.toplamTutar;
                   await updateDoc(doc(db, "cariler", eskiFatura.cariId), { bakiye: increment(eskiBakiyeIadesi) });
               }
               await updateDoc(doc(db, "faturalar", id), { cariId: cariId, cariUnvan: secilenCari.unvan, faturaNo: faturaNo, tarih: tarih, tur: tur, paraBirimi: paraBirimi, tutar: tutar, kdvOran: kdvOran, kdvTutar: kdvTutar, toplamTutar: toplamTutar, aciklama: aciklama, kategori: kategori });
-              await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(yeniBakiyeDegisimi) });
+              if(tur !== 'Fis_OKC' && cariId !== 'MUHTELIF_SATICI') { await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(yeniBakiyeDegisimi) }); }
           } else {
-              let yeniFatRef = await addDoc(collection(db, "faturalar"), { cariId: cariId, cariUnvan: secilenCari.unvan, faturaNo: faturaNo, tarih: tarih, tur: tur, paraBirimi: paraBirimi, tutar: tutar, kdvOran: kdvOran, kdvTutar: kdvTutar, toplamTutar: toplamTutar, aciklama: aciklama, kategori: kategori, durum: tur === 'Fis_OKC' ? 'Ödendi' : 'Bekliyor', islemTarihi: serverTimestamp() });
+              await addDoc(collection(db, "faturalar"), { cariId: cariId, cariUnvan: secilenCari.unvan, faturaNo: faturaNo, tarih: tarih, tur: tur, paraBirimi: paraBirimi, tutar: tutar, kdvOran: kdvOran, kdvTutar: kdvTutar, toplamTutar: toplamTutar, aciklama: aciklama, kategori: kategori, durum: tur === 'Fis_OKC' ? 'Ödendi' : 'Bekliyor', islemTarihi: serverTimestamp() });
               
               if (tur === 'Fis_OKC') {
                   await addDoc(collection(db, "hesapHareketleri"), { bankaId: bankaId, cariId: cariId, tur: 'Odeme', tutar: toplamTutar, aciklama: `Fiş/ÖKC Harcaması (${kategori})`, tarih: new Date(tarih) });
                   await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(-toplamTutar) });
-              } else {
+              } else if(cariId !== 'MUHTELIF_SATICI') {
                   await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(yeniBakiyeDegisimi) });
               }
           }
@@ -1673,37 +1708,42 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                   let mutlakTutar = Math.abs(tutar);
 
                   let eslesenCariId = '';
-                  let islemTuruOto = anaYon; // Varsayılan olarak Tahsilat/Odeme
+                  let islemTuruOto = anaYon;
 
-                  let kisaAciklamaLower = aciklama.toLocaleLowerCase('tr-TR');
-                  let tipLower = hareketTipi.toLocaleLowerCase('tr-TR');
+                  // TÜRKÇE VE İNGİLİZCE KARAKTER NORMALİZASYONU (Sıfır Hata Eşleşme İçin)
+                  let normalizeString = (str) => {
+                      return String(str || '').toLocaleLowerCase('tr-TR')
+                          .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's')
+                          .replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c')
+                          .replace(/[^a-z0-9\s]/g, ''); // Sadece harf, rakam ve boşluk kalsın
+                  };
 
-                  // 1. ADIM: Gelişmiş Kelime Avcısı (Özel Durumlar İçin)
-                  if(kisaAciklamaLower.includes('kredi kartı ödemesi') || tipLower.includes('kart ödeme')) { eslesenCariId = 'SISTEM_KART'; islemTuruOto = 'Kredi_Karti_Odeme'; }
-                  else if(kisaAciklamaLower.includes('vergi') || kisaAciklamaLower.includes('sgk') || kisaAciklamaLower.includes('muhtasar')) { eslesenCariId = 'SISTEM_VERGI'; islemTuruOto = 'Vergi_SGK'; }
-                  else if(kisaAciklamaLower.includes('maaş') || tipLower.includes('maaş')) { eslesenCariId = 'SISTEM_MAAS'; islemTuruOto = 'Maas'; }
-                  else if(kisaAciklamaLower.includes('döviz alış') || kisaAciklamaLower.includes('döviz satış') || tipLower.includes('döviz')) { eslesenCariId = 'SISTEM_DOVIZ'; islemTuruOto = 'Doviz_Alim_Satis'; }
-                  else if(kisaAciklamaLower.includes('faiz') && anaYon === 'Tahsilat') { eslesenCariId = 'SISTEM_FAIZ'; islemTuruOto = 'Faiz_Gelir'; }
-                  else if((kisaAciklamaLower.includes('masraf') || kisaAciklamaLower.includes('komisyon') || kisaAciklamaLower.includes('eft ücreti') || kisaAciklamaLower.includes('faiz')) && anaYon === 'Odeme') { eslesenCariId = 'SISTEM_BANKA'; islemTuruOto = 'Banka_Gider'; }
-                  else if(kisaAciklamaLower.includes('ortağa borç') || kisaAciklamaLower.includes('sermaye avansı') || kisaAciklamaLower.includes('ortaktan')) { eslesenCariId = 'SISTEM_ORTAK'; islemTuruOto = 'Ortak_Borc_Alacak'; }
+                  let aciklamaNorm = normalizeString(aciklama);
+                  let tipNorm = normalizeString(hareketTipi);
+
+                  // 1. ADIM: Gelişmiş Kelime Avcısı
+                  if(aciklamaNorm.includes('kredi karti odemesi') || tipNorm.includes('kart odeme')) { eslesenCariId = 'SISTEM_KART'; islemTuruOto = 'Kredi_Karti_Odeme'; }
+                  else if(aciklamaNorm.includes('vergi') || aciklamaNorm.includes('sgk') || aciklamaNorm.includes('muhtasar')) { eslesenCariId = 'SISTEM_VERGI'; islemTuruOto = 'Vergi_SGK'; }
+                  else if(aciklamaNorm.includes('maas') || tipNorm.includes('maas')) { eslesenCariId = 'SISTEM_MAAS'; islemTuruOto = 'Maas'; }
+                  else if(aciklamaNorm.includes('doviz alis') || aciklamaNorm.includes('doviz satis') || tipNorm.includes('doviz')) { eslesenCariId = 'SISTEM_DOVIZ'; islemTuruOto = 'Doviz_Alim_Satis'; }
+                  else if(aciklamaNorm.includes('faiz') && anaYon === 'Tahsilat') { eslesenCariId = 'SISTEM_FAIZ'; islemTuruOto = 'Faiz_Gelir'; }
+                  else if((aciklamaNorm.includes('masraf') || aciklamaNorm.includes('komisyon') || aciklamaNorm.includes('eft ucreti') || aciklamaNorm.includes('faiz')) && anaYon === 'Odeme') { eslesenCariId = 'SISTEM_BANKA'; islemTuruOto = 'Banka_Gider'; }
+                  else if(aciklamaNorm.includes('ortaga borc') || aciklamaNorm.includes('sermaye avansi') || aciklamaNorm.includes('ortaktan')) { eslesenCariId = 'SISTEM_ORTAK'; islemTuruOto = 'Ortak_Borc_Alacak'; }
                   else {
-                      // 2. ADIM: Cari Hesap İsimlerinden Yakalama Algoritması (Kısa Kelimeleri de Arar)
+                      // 2. ADIM: Normalize Edilmiş Cari İsimlerinden Yakalama Algoritması
                       let siraliCari = [...cariListesi].sort((a,b) => b.unvan.length - a.unvan.length);
-                      let yasakliKelimeler = ['a.ş.', 'ltd.', 'şti.', 'sanayi', 'ticaret', 'pazarlama', 'grup', 'san.', 'tic.', 've', 'a.s.'];
+                      let yasakliKelimeler = ['as', 'ltd', 'sti', 'sanayi', 'ticaret', 'pazarlama', 'grup', 'san', 'tic', 've'];
                       
                       for(let c of siraliCari) {
-                          let cariUnvanLower = c.unvan.toLocaleLowerCase('tr-TR');
+                          let cariNorm = normalizeString(c.unvan);
                           
-                          // Tam unvan eşleşmesi varsa direkt al
-                          if(kisaAciklamaLower.includes(cariUnvanLower)) {
+                          if(aciklamaNorm.includes(cariNorm)) {
                               eslesenCariId = c.id; break;
                           }
                           
-                          // Unvanın içindeki kelimeleri parçala ve açıklamada ara (Jenerik kelimeleri atla)
-                          let words = cariUnvanLower.split(' ').filter(w => w.length > 3 && !yasakliKelimeler.includes(w));
-                          
+                          let words = cariNorm.split(' ').filter(w => w.length > 3 && !yasakliKelimeler.includes(w));
                           for(let w of words) {
-                              if(kisaAciklamaLower.includes(w)) {
+                              if(aciklamaNorm.includes(w)) {
                                   eslesenCariId = c.id; break;
                               }
                           }
@@ -2224,7 +2264,8 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
       document.getElementById('ai_soru').value = ""; 
 
       // AI Uzmanlık Kimliği (System Prompt)
-      const systemPrompt = "Sen CPA FTC KURUMSAL KAYNAK YÖNETİMİ VE DIŞ TİCARET LTD.ŞTİ. firmasının Türkiye mali mevzuatına (VUK, KDV Kanunu, Kurumlar Vergisi), dış ticaret mevzuatına (Gümrük, İhracat İstisnaları) ve SGK iş kanunlarına hakim kıdemli yapay zeka Mali Müşaviri ve Finans Direktörüsün (CFO). Lütfen Türkiye'nin güncel vergi dilimlerini (Örn: %20 KDV, %25 Kurumlar Vergisi, İhracat teşvikleri, Teknopark istisnaları) daima dikkate al. Kullanıcının sorusuna Türk yasalarını temel alarak profesyonel, net, anlaşılır ve dış ticarete uygun bir dille cevap ver. Gereksiz uzatma, finansal/vergisel detayları maddeler halinde özetle.\n\nKullanıcının Sorusu: ";
+      const bugunTarihi = new Date().toLocaleDateString('tr-TR');
+      const systemPrompt = `Sen CPA FTC KURUMSAL KAYNAK YÖNETİMİ VE DIŞ TİCARET LTD.ŞTİ. firmasının Türkiye mali mevzuatına (VUK, KDV Kanunu, Kurumlar Vergisi), dış ticaret mevzuatına ve SGK iş kanunlarına hakim kıdemli yapay zeka Mali Müşaviri ve Finans Direktörüsün (CFO). Bugünün tarihi: ${bugunTarihi} ve yıl 2026'dır. Lütfen tüm hesaplamalarında ve mevzuat yorumlarında 2026 yılı güncel vergi dilimlerini, 2026 güncel asgari ücret tutarlarını ve güncel mevzuat tebliğlerini daima dikkate al. Kullanıcının sorusuna Türk yasalarını temel alarak profesyonel, net, anlaşılır ve dış ticarete uygun bir dille cevap ver. Gereksiz uzatma, finansal detayları maddeler halinde özetle.\n\nKullanıcının Sorusu: `;
       const gonderilecekMetin = systemPrompt + soru;
 
       try {
@@ -2556,6 +2597,8 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                                                 <option value="Fis_OKC">Fiş / ÖKC (Kartlı-Peşin Harcama)</option>
                                             </select>
                                         </div>
+                                        <!-- Eksik olan Fatura No satırı eklendi -->
+                                        <div class="col-md-4"><label class="form-label">Fatura No *</label><input type="text" class="form-control" id="f_faturaNo" required></div>
                                         <div class="col-md-4"><label class="form-label">Fatura Tarihi *</label><input type="date" class="form-control" id="f_tarih"></div>
                                     </div>
                                     <div class="row mb-3">
