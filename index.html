@@ -1532,6 +1532,197 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
       finally { btn.disabled = false; btn.innerHTML = "İşlemi Tamamla"; }
   };
 
+  // ---------------- BANKA EXCEL YÜKLEME VE EŞLEŞTİRME ----------------
+  let excelOkunanHareketler = [];
+
+  window.bankaExcelModalAc = function() {
+      const select = document.getElementById('ex_banka_secim');
+      select.innerHTML = '<option value="">-- Lütfen Hesap Seçin --</option>';
+      bankaListesi.forEach(b => { 
+          select.innerHTML += `<option value="${b.id}">${b.hesapAdi} (${b.paraBirimi})</option>`; 
+      });
+      document.getElementById('banka_excel_dosya').value = "";
+      document.getElementById('excel_eslestirme_alani').classList.add('d-none');
+      document.getElementById('excel_kaydet_btn').classList.add('d-none');
+      new bootstrap.Modal(document.getElementById('bankaExcelModal')).show();
+  };
+
+  window.bankaExcelOku = function() {
+      const bankaId = document.getElementById('ex_banka_secim').value;
+      const fileInput = document.getElementById('banka_excel_dosya');
+      if(!bankaId) { alert("Lütfen işlemlerin işleneceği banka/kasa hesabını seçin."); return; }
+      if(fileInput.files.length === 0) { alert("Lütfen bir excel dosyası seçin."); return; }
+
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+
+      reader.onload = function(e) {
+          try {
+              const data = new Uint8Array(e.target.result);
+              const workbook = XLSX.read(data, {type: 'array', cellDates: true});
+              const sheet = workbook.Sheets[workbook.SheetNames[0]];
+              
+              // Enpara formatında ana başlıklar genelde 2. satırdadır. Önce tüm satırları raw alalım
+              let rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+              
+              // Gerçek başlık satırını bul (İşlem Tutarı kelimesi geçen satır)
+              let headerRowIndex = -1;
+              for(let i = 0; i < Math.min(10, rawRows.length); i++) {
+                  let rowText = rawRows[i].join(' ');
+                  if(rowText.includes('İşlem Tutarı') || rowText.includes('Tutar')) {
+                      headerRowIndex = i; break;
+                  }
+              }
+
+              let rows = [];
+              if(headerRowIndex !== -1) {
+                  // Doğru başlıktan itibaren tabloyu JSON'a çevir
+                  rows = XLSX.utils.sheet_to_json(sheet, { range: headerRowIndex });
+              } else {
+                  rows = XLSX.utils.sheet_to_json(sheet); // Bulunamazsa düz oku
+              }
+
+              excelOkunanHareketler = [];
+              const tbody = document.getElementById('excel_hareketler_tablosu');
+              tbody.innerHTML = '';
+
+              // Seçenek listesi oluştur
+              let cariOptionsHtml = '<option value="">-- CARİ EŞLEŞMEDİ LÜTFEN SEÇİN --</option>';
+              cariListesi.forEach(c => { cariOptionsHtml += `<option value="${c.id}">${c.unvan}</option>`; });
+
+              rows.forEach((r, index) => {
+                  let tarih = r['Tarih'] || r['İşlem Tarihi'] || '';
+                  let aciklama = String(r['Açıklama'] || r['İşlem Açıklaması'] || '').trim();
+                  
+                  // İşlem Tutarı sütununu bul
+                  let tutarStr = r['İşlem Tutarı (TL)'] || r['İşlem Tutarı'] || r['Tutar'] || r['Tutar (TL)'] || 0;
+                  let tutar = parseFloat(tutarStr);
+
+                  if(!aciklama && tutar === 0) return; // Boş/geçersiz satırı atla
+                  if(Number.isNaN(tutar)) return;
+
+                  // Tarihi VUK/ISO formatına çevir (GG/AA/YYYY -> YYYY-AA-GG)
+                  let dStr = new Date().toISOString().split('T')[0];
+                  if(tarih instanceof Date) {
+                      dStr = tarih.toISOString().split('T')[0];
+                  } else if(typeof tarih === 'string') {
+                      let tP = tarih.split('/');
+                      if(tP.length === 3) dStr = `${tP[2]}-${tP[1]}-${tP[0]}`;
+                      else dStr = tarih;
+                  }
+
+                  let tur = tutar > 0 ? 'Tahsilat' : 'Odeme';
+                  let mutlakTutar = Math.abs(tutar);
+
+                  // CARİ EŞLEŞTİRME (Metin arama)
+                  let eslesenCariId = '';
+                  let kisaAciklamaLower = aciklama.toLowerCase();
+                  
+                  // En uzun ünvanlı firmayı önce ara ki çakışma olmasın
+                  let siraliCari = [...cariListesi].sort((a,b) => b.unvan.length - a.unvan.length);
+                  for(let c of siraliCari) {
+                      if(kisaAciklamaLower.includes(c.unvan.toLowerCase())) {
+                          eslesenCariId = c.id; break;
+                      }
+                  }
+
+                  excelOkunanHareketler.push({
+                      index: index,
+                      tarih: dStr,
+                      aciklama: aciklama,
+                      tutar: mutlakTutar,
+                      tur: tur,
+                      bankaId: bankaId,
+                      eslesenId: eslesenCariId
+                  });
+
+                  let rowColor = tur === 'Tahsilat' ? 'text-success' : 'text-danger';
+                  let statusIcon = eslesenCariId ? '<i class="fas fa-check-circle text-success" title="Eşleşti"></i>' : '<i class="fas fa-exclamation-circle text-warning" title="Eşleşmedi"></i>';
+                  let bgColor = eslesenCariId ? '' : 'bg-warning bg-opacity-10';
+
+                  tbody.innerHTML += `
+                      <tr id="ex_row_${index}" class="${bgColor}">
+                          <td class="text-center">${statusIcon}</td>
+                          <td>${dStr}</td>
+                          <td class="text-wrap" style="max-width: 300px;"><small>${aciklama}</small></td>
+                          <td class="fw-bold ${rowColor}">${tur === 'Tahsilat' ? '+' : '-'}${mutlakTutar.toLocaleString('tr-TR', {minimumFractionDigits: 2})}</td>
+                          <td>
+                              <select class="form-select form-select-sm border-secondary cari-secici" id="ex_cari_${index}">
+                                  ${cariOptionsHtml}
+                              </select>
+                          </td>
+                      </tr>
+                  `;
+              });
+
+              // Bulunan eşleşmeleri select box'lara yerleştir
+              excelOkunanHareketler.forEach(h => {
+                  let cariSelect = document.getElementById(`ex_cari_${h.index}`);
+                  if(h.eslesenId) cariSelect.value = h.eslesenId;
+              });
+
+              document.getElementById('excel_eslestirme_alani').classList.remove('d-none');
+              document.getElementById('excel_kaydet_btn').classList.remove('d-none');
+
+          } catch(err) {
+              alert("Dosya okunamadı. Enpara veya standart banka formatında olduğundan emin olun.");
+              console.error(err);
+          }
+      };
+      reader.readAsArrayBuffer(file);
+  };
+
+  window.bankaEkstreTopluKaydet = async function() {
+      const btn = document.getElementById('excel_kaydet_btn');
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Kaydediliyor...'; btn.disabled = true;
+      
+      let islenenSayi = 0;
+      let atlananSayi = 0;
+
+      for (let h of excelOkunanHareketler) {
+          let cariId = document.getElementById(`ex_cari_${h.index}`).value;
+          
+          if(!cariId) {
+              atlananSayi++;
+              // Kırmızıya boya ki atlandığı belli olsun
+              document.getElementById(`ex_row_${h.index}`).classList.replace('bg-warning', 'bg-danger');
+              continue; 
+          }
+
+          try {
+              // Firebase'e Hesap Hareketi Ekle
+              await addDoc(collection(db, "hesapHareketleri"), {
+                  bankaId: h.bankaId,
+                  cariId: cariId,
+                  tur: h.tur,
+                  tutar: h.tutar,
+                  aciklama: h.aciklama,
+                  tarih: new Date(h.tarih) 
+              });
+
+              // Banka ve Cari Bakiyelerini Güncelle
+              const bakiyeDegisimi = h.tur === 'Tahsilat' ? h.tutar : -h.tutar;
+              await updateDoc(doc(db, "bankalar", h.bankaId), { bakiye: increment(bakiyeDegisimi) });
+
+              const cariBakiyeDegisimi = h.tur === 'Tahsilat' ? -h.tutar : h.tutar;
+              await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(cariBakiyeDegisimi) });
+              
+              // Başarıyı göster
+              document.getElementById(`ex_row_${h.index}`).classList.remove('bg-warning', 'bg-opacity-10');
+              document.getElementById(`ex_row_${h.index}`).classList.add('table-success');
+              
+              // Birden fazla tıklandığında aynı veriyi tekrar kaydetmesin diye objeyi deaktive et
+              h.eslesenId = null;
+              islenenSayi++;
+          } catch(err) {
+              console.error(err);
+          }
+      }
+
+      alert(`Toplu İşlem Tamamlandı!\n${islenenSayi} hareket başarıyla sisteme aktarıldı.\n${atlananSayi} hareket (Cari hesap seçilmediği için) atlandı.`);
+      btn.innerHTML = '<i class="fas fa-save me-1"></i> Eşleşenleri Sisteme Kaydet'; btn.disabled = false;
+  };
+
   // ---------------- VERGİ VE YASAL ÖDEME İŞLEMLERİ ----------------
   window.vergileriCiz = function() {
       const bTbody = document.getElementById('bekleyenVergiTabloGövdesi');
@@ -2512,7 +2703,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                                         <label class="form-label text-muted small">Açıklama</label>
                                         <input type="text" class="form-control" id="kf_aciklama" placeholder="Örn: USD/EUR parite farkı düzeltmesi">
                                     </div>
-                                    <div class="alert alert-warning small py-2 mb-0"><i class="fas fa-info-circle"></i> Kur farkı işlemleri banka/kasa bakiyenizi <b>etkilemez</b>, yalnızca Cari Hesabın bakiyesini düzeltir.</div>
+                                    <div class="alert alert-warning small py-2 mb-0"><i class="fas fa-info-circle"></i> Kur farkı işlemleri banka bakiyenizi etkilemez, yalnızca Cari Hesabın bakiyesini düzeltir.</div>
                                 </form>
                             </div>
                             <div class="modal-footer">
@@ -2522,7 +2713,59 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                         </div>
                     </div>
                 </div>
+
+                <!-- BANKA EKSTRE EXCEL MODALI -->
+                <div class="modal fade" id="bankaExcelModal" tabindex="-1">
+                    <div class="modal-dialog modal-xl">
+                        <div class="modal-content border-0 shadow-lg">
+                            <div class="modal-header bg-success text-white">
+                                <h5 class="modal-title"><i class="fas fa-file-excel me-2"></i>Banka Hareketleri Yükleme (Otomatik Eşleştirme)</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body p-4 bg-light">
+                                <div class="row mb-4">
+                                    <div class="col-md-5">
+                                        <label class="form-label text-muted small fw-bold">Hangi Banka Hesabına İşlenecek? *</label>
+                                        <select class="form-select shadow-sm border-success" id="ex_banka_secim"></select>
+                                    </div>
+                                    <div class="col-md-7">
+                                        <label class="form-label text-muted small fw-bold">Enpara Ekstre Dosyası Seçin (.xls, .xlsx) *</label>
+                                        <div class="input-group shadow-sm">
+                                            <input type="file" id="banka_excel_dosya" class="form-control border-success" accept=".xlsx, .xls">
+                                            <button class="btn btn-primary fw-bold px-4" onclick="bankaExcelOku()">Listele ve Eşleştir</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div id="excel_eslestirme_alani" class="d-none">
+                                    <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">İşlemler ve Cari Eşleştirme Sonuçları</h6>
+                                    <div class="table-responsive bg-white rounded border shadow-sm" style="max-height: 400px;">
+                                        <table class="table table-hover align-middle mb-0 text-nowrap" style="font-size: 0.8rem;">
+                                            <thead class="table-light text-secondary sticky-top">
+                                                <tr>
+                                                    <th class="text-center"><i class="fas fa-check-circle"></i></th>
+                                                    <th>Tarih</th>
+                                                    <th>Açıklama</th>
+                                                    <th>Tutar</th>
+                                                    <th style="min-width: 250px;">Eşleşen Cari Kart (Manuel Değiştirilebilir)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="excel_hareketler_tablosu"></tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                                <button type="button" class="btn btn-success fw-bold d-none" id="excel_kaydet_btn" onclick="bankaEkstreTopluKaydet()"><i class="fas fa-save me-1"></i> Eşleşenleri Sisteme Kaydet</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             `;
+
+
             setTimeout(() => { if(typeof window.bankalariCiz === 'function') window.bankalariCiz(); }, 50);
         }
 
