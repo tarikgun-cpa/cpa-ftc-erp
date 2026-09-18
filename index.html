@@ -463,8 +463,8 @@
             data: {
                 labels: ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"],
                 datasets: [
-                    { label: 'Gelir (€)', data: aylikVeri.map(v => v.gelir), borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderWidth: 2, fill: true, tension: 0.4 },
-                    { label: 'Gider (€)', data: aylikVeri.map(v => v.gider), borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderWidth: 2, fill: true, tension: 0.4 }
+                    { label: 'Gelir (TL)', data: aylikVeri.map(v => v.gelir), borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderWidth: 2, fill: true, tension: 0.4 },
+                    { label: 'Gider (TL)', data: aylikVeri.map(v => v.gider), borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderWidth: 2, fill: true, tension: 0.4 }
                 ]
             },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { boxWidth: 10, font: {size: 11} } } }, scales: { y: { beginAtZero: true, ticks: {font: {size: 10}} }, x: { ticks: {font: {size: 10}} } } }
@@ -2149,14 +2149,22 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                                     <div class="row mb-3">
                                         <div class="col-md-12"><label class="form-label">Ünvan *</label><input type="text" class="form-control" id="c_unvan" required></div>
                                     </div>
-                                    <div class="col-md-12 mb-3"><label class="form-label">Para Birimi *</label><select class="form-select" id="c_paraBirimi"><option value="EUR">Euro (€)</option><option value="USD">Dolar ($)</option></select></div>
-                                    <div class="row mb-3">
-                                        <div class="col-md-6"><label class="form-label">Cari Grubu *</label><select class="form-select" id="c_grup"><option value="Alici">Alıcı</option><option value="Satici">Satıcı</option></select></div>
-                                        <div class="col-md-6"><label class="form-label">Bölge *</label><select class="form-select" id="c_bolge"><option value="Yerli">Yerli (Türkiye)</option><option value="Yabanci">Yabancı (Yurt Dışı)</option></select></div>
+                                    <div class="col-md-12 mb-3">
+                                        <label class="form-label">Para Birimi *</label>
+                                        <select class="form-select" id="c_paraBirimi">
+                                            <option value="TRY">Türk Lirası (₺)</option>
+                                            <option value="USD">Dolar ($)</option>
+                                            <option value="EUR">Euro (€)</option>
+                                        </select>
                                     </div>
                                     <div class="row mb-3">
-                                        <div class="col-md-6"><label class="form-label">Ülke</label><input type="text" class="form-control" id="c_ulke" value="Türkiye"></div>
-                                        <div class="col-md-6"><label class="form-label">Vergi No / PIB *</label><input type="text" class="form-control" id="c_vergiNo"></div>
+                                        <div class="col-md-6"><label class="form-label">Cari Grubu *</label><select class="form-select" id="c_grup"><option value="Alici">Alıcı</option><option value="Satici">Satıcı</option></select></div>
+                                        <div class="col-md-6"><label class="form-label">Bölge *</label><select class="form-select" id="c_bolge"><option value="Yerli">Yurtiçi (Türkiye)</option><option value="Yabanci">Yurtdışı (İhracat / İthalat)</option></select></div>
+                                    </div>
+                                    <div class="row mb-3">
+                                        <div class="col-md-4"><label class="form-label">Ülke</label><input type="text" class="form-control" id="c_ulke" value="Türkiye"></div>
+                                        <div class="col-md-4"><label class="form-label">Vergi Dairesi</label><input type="text" class="form-control" id="c_vergiDairesi"></div>
+                                        <div class="col-md-4"><label class="form-label">Vergi No / TCKN *</label><input type="text" class="form-control" id="c_vergiNo"></div>
                                     </div>
                                     <h6 class="mt-4 border-bottom pb-2">Banka ve İletişim</h6>
                                     <div class="row mb-3">
@@ -2381,7 +2389,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                             </div>
                             <div class="modal-body">
-                                <form id="yeniBankaForm">
+                            <form id="yeniBankaForm">
                                     <input type="hidden" id="b_id">
                                     <div class="row mb-3">
                                         <div class="col-md-6">
@@ -2392,19 +2400,17 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                                                 <option value="Kasa">Nakit Kasa</option>
                                             </select>
                                         </div>
-                                        <div class="col-md-12 mb-3"><label class="form-label">Para Birimi *</label><select class="form-select" id="c_paraBirimi"><option value="TRY">Türk Lirası (₺)</option><option value="USD">Dolar ($)</option><option value="EUR">Euro (€)</option></select></div>
-                                    <div class="row mb-3">
-                                        <div class="col-md-6"><label class="form-label">Cari Grubu *</label><select class="form-select" id="c_grup"><option value="Alici">Alıcı</option><option value="Satici">Satıcı</option></select></div>
-                                        <div class="col-md-6"><label class="form-label">Bölge *</label><select class="form-select" id="c_bolge"><option value="Yerli">Yurtiçi (Türkiye)</option><option value="Yabanci">Yurtdışı (İhracat / İthalat)</option></select></div>
-                                    </div>
-                                    <div class="row mb-3">
-                                        <div class="col-md-4"><label class="form-label">Ülke</label><input type="text" class="form-control" id="c_ulke" value="Türkiye"></div>
-                                        <div class="col-md-4"><label class="form-label">Vergi Dairesi</label><input type="text" class="form-control" id="c_vergiDairesi"></div>
-                                        <div class="col-md-4"><label class="form-label">Vergi No / TCKN *</label><input type="text" class="form-control" id="c_vergiNo"></div>
-                                    </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Para Birimi *</label>
+                                            <select class="form-select" id="b_paraBirimi">
+                                                <option value="TRY">Türk Lirası (₺)</option>
+                                                <option value="USD">Dolar ($)</option>
+                                                <option value="EUR">Euro (€)</option>
+                                            </select>
+                                        </div>
                                     </div>
                                     <div class="mb-3">
-                                        <label class="form-label">Hesap Adı * (Örn: Merkez Kasa, CKB Euro)</label>
+                                        <label class="form-label">Hesap Adı * (Örn: Merkez Kasa, Garanti TL, Enpara Kredi Kartı)</label>
                                         <input type="text" class="form-control" id="b_hesapAdi" required>
                                     </div>
                                     <div class="mb-3">
@@ -2413,15 +2419,15 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                                     </div>
                                     <div class="row mb-3">
                                         <div class="col-md-6">
-                                            <label class="form-label">IBAN (Uluslararası/Swift)</label>
-                                            <input type="text" class="form-control" id="b_iban" placeholder="ME...">
+                                            <label class="form-label">IBAN / Kart No</label>
+                                            <input type="text" class="form-control" id="b_iban" placeholder="TR...">
                                         </div>
                                         <div class="col-md-6">
-                                            <label class="form-label">Yerel Hesap No (Türkiye İçi)</label>
-                                            <input type="text" class="form-control" id="b_yerelHesap" placeholder="520-...">
+                                            <label class="form-label">Yerel Hesap No / Şube</label>
+                                            <input type="text" class="form-control" id="b_yerelHesap">
                                         </div>
                                     </div>
-                                </form>
+                                </form>    
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
