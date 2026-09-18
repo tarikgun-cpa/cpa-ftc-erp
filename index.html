@@ -810,20 +810,24 @@
   };
   window.cariDuzenleAc = function(id) {
       const c = cariListesi.find(x => x.id === id);
+      
       document.getElementById('c_id').value = c.id;
-      document.getElementById('c_unvan').value = c.unvan; document.getElementById('c_paraBirimi').value = c.paraBirimi || 'EUR';
-      document.getElementById('c_grup').value = c.grup; document.getElementById('c_bolge').value = c.bolge;
-      const data = {
-          unvan: unvan, paraBirimi: document.getElementById('c_paraBirimi').value, grup: document.getElementById('c_grup').value,
-          bolge: document.getElementById('c_bolge').value, ulke: document.getElementById('c_ulke').value, 
-          vergiDairesi: document.getElementById('c_vergiDairesi') ? document.getElementById('c_vergiDairesi').value : '',
-          vergiNo: document.getElementById('c_vergiNo').value, iban: document.getElementById('c_iban').value, 
-          bic: document.getElementById('c_bic').value, email: document.getElementById('c_email').value
-      };
-      document.getElementById('c_iban').value = c.iban; document.getElementById('c_bic').value = c.bic;
-      document.getElementById('c_email').value = c.email;
+      document.getElementById('c_unvan').value = c.unvan; 
+      document.getElementById('c_paraBirimi').value = c.paraBirimi || 'EUR';
+      document.getElementById('c_grup').value = c.grup; 
+      document.getElementById('c_bolge').value = c.bolge;
+      document.getElementById('c_ulke').value = c.ulke || '';
+      
+      if(document.getElementById('c_vergiDairesi')) {
+          document.getElementById('c_vergiDairesi').value = c.vergiDairesi || '';
+      }
+      document.getElementById('c_vergiNo').value = c.vergiNo || '';
+      document.getElementById('c_iban').value = c.iban || ''; 
+      document.getElementById('c_bic').value = c.bic || '';
+      document.getElementById('c_email').value = c.email || '';
+      
       document.querySelector("#yeniCariModal .modal-title").innerHTML = "Cari Düzenle";
-      new bootstrap.Modal(document.getElementById('yeniCariModal')).show();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('yeniCariModal')).show();
   };
 
   window.cariKaydet = async function() {
@@ -1084,14 +1088,15 @@
       document.getElementById('f_tarih').value = f.tarih; 
       document.getElementById('f_aciklama').value = f.aciklama || '';
       
-      window.kategorileriDoldur(); // Dinamik listeyi yön/türe göre doldur
+      window.kategorileriDoldur(); 
+      if(typeof window.fisSecimiKontrol === 'function') window.fisSecimiKontrol();
       document.getElementById('f_kategori').value = f.kategori || '';
       
       document.getElementById('f_tutar').value = f.tutar; 
       document.getElementById('f_kdvOran').value = f.kdvOran;
       window.hesaplaKdv();
       document.querySelector("#yeniFaturaModal .modal-title").innerHTML = "Fatura Düzenle";
-      new bootstrap.Modal(document.getElementById('yeniFaturaModal')).show();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('yeniFaturaModal')).show();
   };
 
   window.faturaKopyalaAc = function(id) {
@@ -1108,13 +1113,14 @@
       document.getElementById('f_aciklama').value = f.aciklama || '';
       
       window.kategorileriDoldur();
+      if(typeof window.fisSecimiKontrol === 'function') window.fisSecimiKontrol();
       document.getElementById('f_kategori').value = f.kategori || '';
       
       document.getElementById('f_tutar').value = f.tutar; 
       document.getElementById('f_kdvOran').value = f.kdvOran;
       window.hesaplaKdv();
       document.querySelector("#yeniFaturaModal .modal-title").innerHTML = "<i class='fas fa-copy me-2'></i>Fatura Çoğalt (Taslak)";
-      new bootstrap.Modal(document.getElementById('yeniFaturaModal')).show();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('yeniFaturaModal')).show();
   };
 
   window.faturaSil = async function(faturaId, cariId, tur, toplamTutar) {
@@ -1578,7 +1584,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
       } catch(e) { alert("Hata: " + e.message); } 
       finally { btn.disabled = false; btn.innerHTML = "İşlemi Tamamla"; }
   };
-  
+
   // ---------------- BANKA EXCEL YÜKLEME VE EŞLEŞTİRME ----------------
   let excelOkunanHareketler = [];
 
@@ -1669,8 +1675,8 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                   let eslesenCariId = '';
                   let islemTuruOto = anaYon; // Varsayılan olarak Tahsilat/Odeme
 
-                  let kisaAciklamaLower = aciklama.toLowerCase();
-                  let tipLower = hareketTipi.toLowerCase();
+                  let kisaAciklamaLower = aciklama.toLocaleLowerCase('tr-TR');
+                  let tipLower = hareketTipi.toLocaleLowerCase('tr-TR');
 
                   // 1. ADIM: Gelişmiş Kelime Avcısı (Özel Durumlar İçin)
                   if(kisaAciklamaLower.includes('kredi kartı ödemesi') || tipLower.includes('kart ödeme')) { eslesenCariId = 'SISTEM_KART'; islemTuruOto = 'Kredi_Karti_Odeme'; }
@@ -1683,16 +1689,19 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                   else {
                       // 2. ADIM: Cari Hesap İsimlerinden Yakalama Algoritması (Kısa Kelimeleri de Arar)
                       let siraliCari = [...cariListesi].sort((a,b) => b.unvan.length - a.unvan.length);
+                      let yasakliKelimeler = ['a.ş.', 'ltd.', 'şti.', 'sanayi', 'ticaret', 'pazarlama', 'grup', 'san.', 'tic.', 've', 'a.s.'];
+                      
                       for(let c of siraliCari) {
-                          // Unvanın içindeki her bir kelimeyi (Örn: "MTS", "TCT", "ELS") parçala ve açıklamada ara
-                          let words = c.unvan.toLowerCase().split(' ').filter(w => w.length > 2 && w !== 'a.ş.' && w !== 'ltd.' && w !== 'şti.');
+                          let cariUnvanLower = c.unvan.toLocaleLowerCase('tr-TR');
                           
                           // Tam unvan eşleşmesi varsa direkt al
-                          if(kisaAciklamaLower.includes(c.unvan.toLowerCase())) {
+                          if(kisaAciklamaLower.includes(cariUnvanLower)) {
                               eslesenCariId = c.id; break;
                           }
                           
-                          // Unvanın içindeki kilit bir kelime (örn: MTS) açıklamada geçiyorsa eşleştir
+                          // Unvanın içindeki kelimeleri parçala ve açıklamada ara (Jenerik kelimeleri atla)
+                          let words = cariUnvanLower.split(' ').filter(w => w.length > 3 && !yasakliKelimeler.includes(w));
+                          
                           for(let w of words) {
                               if(kisaAciklamaLower.includes(w)) {
                                   eslesenCariId = c.id; break;
