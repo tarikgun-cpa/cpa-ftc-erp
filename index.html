@@ -1562,10 +1562,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
               const workbook = XLSX.read(data, {type: 'array', cellDates: true});
               const sheet = workbook.Sheets[workbook.SheetNames[0]];
               
-              // Enpara formatında ana başlıklar genelde 2. satırdadır. Önce tüm satırları raw alalım
               let rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-              
-              // Gerçek başlık satırını bul (İşlem Tutarı kelimesi geçen satır)
               let headerRowIndex = -1;
               for(let i = 0; i < Math.min(10, rawRows.length); i++) {
                   let rowText = rawRows[i].join(' ');
@@ -1576,32 +1573,40 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
 
               let rows = [];
               if(headerRowIndex !== -1) {
-                  // Doğru başlıktan itibaren tabloyu JSON'a çevir
                   rows = XLSX.utils.sheet_to_json(sheet, { range: headerRowIndex });
               } else {
-                  rows = XLSX.utils.sheet_to_json(sheet); // Bulunamazsa düz oku
+                  rows = XLSX.utils.sheet_to_json(sheet); 
               }
 
               excelOkunanHareketler = [];
               const tbody = document.getElementById('excel_hareketler_tablosu');
               tbody.innerHTML = '';
 
-              // Seçenek listesi oluştur
-              let cariOptionsHtml = '<option value="">-- CARİ EŞLEŞMEDİ LÜTFEN SEÇİN --</option>';
+              let cariOptionsHtml = '<option value="">-- CARİ EŞLEŞMEDİ / MANUEL SEÇİN --</option>';
+              // Sisteme kayıtlı özel hesaplar (Maaş, Vergi vs. için kullanılacak sahte cariler)
+              cariOptionsHtml += '<option value="SISTEM_KART">-- Kredi Kartı Ödemesi --</option>';
+              cariOptionsHtml += '<option value="SISTEM_VERGI">-- Vergi / SGK Ödemesi --</option>';
+              cariOptionsHtml += '<option value="SISTEM_MAAS">-- Personel Maaşı --</option>';
+              cariOptionsHtml += '<option value="SISTEM_BANKA">-- Banka Masrafı/Faiz Gideri --</option>';
+              cariOptionsHtml += '<option value="SISTEM_FAIZ">-- Faiz Geliri --</option>';
+              cariOptionsHtml += '<option value="SISTEM_DOVIZ">-- Döviz Alım / Satım --</option>';
+              cariOptionsHtml += '<option value="SISTEM_VIRMAN">-- Kasa/Banka Virman --</option>';
+              cariOptionsHtml += '<option value="SISTEM_ORTAK">-- Ortaklardan Alınan/Verilen Borç --</option>';
+              cariOptionsHtml += '<option disabled>──────────────────────</option>';
+              
               cariListesi.forEach(c => { cariOptionsHtml += `<option value="${c.id}">${c.unvan}</option>`; });
 
               rows.forEach((r, index) => {
                   let tarih = r['Tarih'] || r['İşlem Tarihi'] || '';
                   let aciklama = String(r['Açıklama'] || r['İşlem Açıklaması'] || '').trim();
+                  let hareketTipi = String(r['Hareket tipi'] || r['İşlem Tipi'] || '').trim();
                   
-                  // İşlem Tutarı sütununu bul
                   let tutarStr = r['İşlem Tutarı (TL)'] || r['İşlem Tutarı'] || r['Tutar'] || r['Tutar (TL)'] || 0;
                   let tutar = parseFloat(tutarStr);
 
-                  if(!aciklama && tutar === 0) return; // Boş/geçersiz satırı atla
+                  if(!aciklama && tutar === 0) return; 
                   if(Number.isNaN(tutar)) return;
 
-                  // Tarihi VUK/ISO formatına çevir (GG/AA/YYYY -> YYYY-AA-GG)
                   let dStr = new Date().toISOString().split('T')[0];
                   if(tarih instanceof Date) {
                       dStr = tarih.toISOString().split('T')[0];
@@ -1611,18 +1616,42 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                       else dStr = tarih;
                   }
 
-                  let tur = tutar > 0 ? 'Tahsilat' : 'Odeme';
+                  let anaYon = tutar > 0 ? 'Tahsilat' : 'Odeme';
                   let mutlakTutar = Math.abs(tutar);
 
-                  // CARİ EŞLEŞTİRME (Metin arama)
                   let eslesenCariId = '';
+                  let islemTuruOto = anaYon; // Varsayılan olarak Tahsilat/Odeme
+
                   let kisaAciklamaLower = aciklama.toLowerCase();
-                  
-                  // En uzun ünvanlı firmayı önce ara ki çakışma olmasın
-                  let siraliCari = [...cariListesi].sort((a,b) => b.unvan.length - a.unvan.length);
-                  for(let c of siraliCari) {
-                      if(kisaAciklamaLower.includes(c.unvan.toLowerCase())) {
-                          eslesenCariId = c.id; break;
+                  let tipLower = hareketTipi.toLowerCase();
+
+                  // 1. ADIM: Gelişmiş Kelime Avcısı (Özel Durumlar İçin)
+                  if(kisaAciklamaLower.includes('kredi kartı ödemesi') || tipLower.includes('kart ödeme')) { eslesenCariId = 'SISTEM_KART'; islemTuruOto = 'Kredi_Karti_Odeme'; }
+                  else if(kisaAciklamaLower.includes('vergi') || kisaAciklamaLower.includes('sgk') || kisaAciklamaLower.includes('muhtasar')) { eslesenCariId = 'SISTEM_VERGI'; islemTuruOto = 'Vergi_SGK'; }
+                  else if(kisaAciklamaLower.includes('maaş') || tipLower.includes('maaş')) { eslesenCariId = 'SISTEM_MAAS'; islemTuruOto = 'Maas'; }
+                  else if(kisaAciklamaLower.includes('döviz alış') || kisaAciklamaLower.includes('döviz satış') || tipLower.includes('döviz')) { eslesenCariId = 'SISTEM_DOVIZ'; islemTuruOto = 'Doviz_Alim_Satis'; }
+                  else if(kisaAciklamaLower.includes('faiz') && anaYon === 'Tahsilat') { eslesenCariId = 'SISTEM_FAIZ'; islemTuruOto = 'Faiz_Gelir'; }
+                  else if((kisaAciklamaLower.includes('masraf') || kisaAciklamaLower.includes('komisyon') || kisaAciklamaLower.includes('eft ücreti') || kisaAciklamaLower.includes('faiz')) && anaYon === 'Odeme') { eslesenCariId = 'SISTEM_BANKA'; islemTuruOto = 'Banka_Gider'; }
+                  else if(kisaAciklamaLower.includes('ortağa borç') || kisaAciklamaLower.includes('sermaye avansı') || kisaAciklamaLower.includes('ortaktan')) { eslesenCariId = 'SISTEM_ORTAK'; islemTuruOto = 'Ortak_Borc_Alacak'; }
+                  else {
+                      // 2. ADIM: Cari Hesap İsimlerinden Yakalama Algoritması (Kısa Kelimeleri de Arar)
+                      let siraliCari = [...cariListesi].sort((a,b) => b.unvan.length - a.unvan.length);
+                      for(let c of siraliCari) {
+                          // Unvanın içindeki her bir kelimeyi (Örn: "MTS", "TCT", "ELS") parçala ve açıklamada ara
+                          let words = c.unvan.toLowerCase().split(' ').filter(w => w.length > 2 && w !== 'a.ş.' && w !== 'ltd.' && w !== 'şti.');
+                          
+                          // Tam unvan eşleşmesi varsa direkt al
+                          if(kisaAciklamaLower.includes(c.unvan.toLowerCase())) {
+                              eslesenCariId = c.id; break;
+                          }
+                          
+                          // Unvanın içindeki kilit bir kelime (örn: MTS) açıklamada geçiyorsa eşleştir
+                          for(let w of words) {
+                              if(kisaAciklamaLower.includes(w)) {
+                                  eslesenCariId = c.id; break;
+                              }
+                          }
+                          if(eslesenCariId) break;
                       }
                   }
 
@@ -1631,22 +1660,38 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                       tarih: dStr,
                       aciklama: aciklama,
                       tutar: mutlakTutar,
-                      tur: tur,
+                      tur: islemTuruOto,
                       bankaId: bankaId,
                       eslesenId: eslesenCariId
                   });
 
-                  let rowColor = tur === 'Tahsilat' ? 'text-success' : 'text-danger';
+                  let rowColor = anaYon === 'Tahsilat' ? 'text-success' : 'text-danger';
                   let statusIcon = eslesenCariId ? '<i class="fas fa-check-circle text-success" title="Eşleşti"></i>' : '<i class="fas fa-exclamation-circle text-warning" title="Eşleşmedi"></i>';
                   let bgColor = eslesenCariId ? '' : 'bg-warning bg-opacity-10';
+
+                  let turSelectHtml = `
+                      <select class="form-select form-select-sm border-0 bg-transparent text-secondary mb-1" id="ex_tur_${index}" style="font-size: 0.7rem; padding: 0;">
+                          <option value="Tahsilat">Müşteriden Tahsilat</option>
+                          <option value="Odeme">Tedarikçiye Ödeme</option>
+                          <option value="Kredi_Karti_Odeme">Kredi Kartı Borç Ödemesi</option>
+                          <option value="Virman">Banka/Kasa Virman</option>
+                          <option value="Doviz_Alim_Satis">Döviz İşlemi</option>
+                          <option value="Maas">Maaş Ödemesi</option>
+                          <option value="Vergi_SGK">Vergi / SGK</option>
+                          <option value="Ortak_Borc_Alacak">Ortak İşlemi</option>
+                          <option value="Faiz_Gelir">Faiz Geliri</option>
+                          <option value="Banka_Gider">Banka Masrafı</option>
+                      </select>
+                  `;
 
                   tbody.innerHTML += `
                       <tr id="ex_row_${index}" class="${bgColor}">
                           <td class="text-center">${statusIcon}</td>
                           <td>${dStr}</td>
                           <td class="text-wrap" style="max-width: 300px;"><small>${aciklama}</small></td>
-                          <td class="fw-bold ${rowColor}">${tur === 'Tahsilat' ? '+' : '-'}${mutlakTutar.toLocaleString('tr-TR', {minimumFractionDigits: 2})}</td>
+                          <td class="fw-bold ${rowColor}">${anaYon === 'Tahsilat' ? '+' : '-'}${mutlakTutar.toLocaleString('tr-TR', {minimumFractionDigits: 2})}</td>
                           <td>
+                              ${turSelectHtml}
                               <select class="form-select form-select-sm border-secondary cari-secici" id="ex_cari_${index}">
                                   ${cariOptionsHtml}
                               </select>
@@ -1655,10 +1700,12 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                   `;
               });
 
-              // Bulunan eşleşmeleri select box'lara yerleştir
+              // Selectleri güncel değerlere set et
               excelOkunanHareketler.forEach(h => {
                   let cariSelect = document.getElementById(`ex_cari_${h.index}`);
+                  let turSelect = document.getElementById(`ex_tur_${h.index}`);
                   if(h.eslesenId) cariSelect.value = h.eslesenId;
+                  if(h.tur) turSelect.value = h.tur;
               });
 
               document.getElementById('excel_eslestirme_alani').classList.remove('d-none');
@@ -1681,10 +1728,10 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
 
       for (let h of excelOkunanHareketler) {
           let cariId = document.getElementById(`ex_cari_${h.index}`).value;
+          let islemTuru = document.getElementById(`ex_tur_${h.index}`).value;
           
           if(!cariId) {
               atlananSayi++;
-              // Kırmızıya boya ki atlandığı belli olsun
               document.getElementById(`ex_row_${h.index}`).classList.replace('bg-warning', 'bg-danger');
               continue; 
           }
@@ -1694,24 +1741,33 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
               await addDoc(collection(db, "hesapHareketleri"), {
                   bankaId: h.bankaId,
                   cariId: cariId,
-                  tur: h.tur,
+                  tur: islemTuru, // Artık yeni sistemden gelen tür (Virman, Maaş, Tahsilat vb.)
                   tutar: h.tutar,
                   aciklama: h.aciklama,
                   tarih: new Date(h.tarih) 
               });
 
-              // Banka ve Cari Bakiyelerini Güncelle
-              const bakiyeDegisimi = h.tur === 'Tahsilat' ? h.tutar : -h.tutar;
-              await updateDoc(doc(db, "bankalar", h.bankaId), { bakiye: increment(bakiyeDegisimi) });
+              // Sadece Tahsilat ve Odeme ise Carinin bakiyesini etkile
+              // Diğer türler (Maaş, Vergi, Masraf) cari hesap bakiyesini ETKİLEMEMELİ
+              if(islemTuru === 'Tahsilat' || islemTuru === 'Odeme') {
+                  const cariBakiyeDegisimi = islemTuru === 'Tahsilat' ? -h.tutar : h.tutar;
+                  await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(cariBakiyeDegisimi) });
+              }
 
-              const cariBakiyeDegisimi = h.tur === 'Tahsilat' ? -h.tutar : h.tutar;
-              await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(cariBakiyeDegisimi) });
+              // Fakat banka bakiyesini DAİMA güncellemeli
+              let girisTipleri = ['Tahsilat', 'Faiz_Gelir']; // Bankaya para sokan işlemler
+              let bankaBakiyeDegisimi = girisTipleri.includes(islemTuru) ? h.tutar : -h.tutar;
               
-              // Başarıyı göster
+              // Eğer Virman veya Döviz işlemiyse, "Eksiden artıya, artıdan eksiye" geçiş için özel yön mantığı
+              if(islemTuru === 'Virman' || islemTuru === 'Doviz_Alim_Satis' || islemTuru === 'Ortak_Borc_Alacak') {
+                  bankaBakiyeDegisimi = h.tur === 'Tahsilat' ? h.tutar : -h.tutar; // Excel satırındaki asıl yöne bak
+              }
+
+              await updateDoc(doc(db, "bankalar", h.bankaId), { bakiye: increment(bankaBakiyeDegisimi) });
+              
               document.getElementById(`ex_row_${h.index}`).classList.remove('bg-warning', 'bg-opacity-10');
               document.getElementById(`ex_row_${h.index}`).classList.add('table-success');
               
-              // Birden fazla tıklandığında aynı veriyi tekrar kaydetmesin diye objeyi deaktive et
               h.eslesenId = null;
               islenenSayi++;
           } catch(err) {
@@ -2653,11 +2709,26 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                             </div>
                             <div class="modal-body">
                                 <form id="islemForm">
-                                    <input type="hidden" id="i_tur">
                                     <input type="hidden" id="i_bankaId">
                                     
                                     <div class="mb-3">
-                                        <label class="form-label">İlgili Cari (Kime/Kimden) *</label>
+                                        <label class="form-label">İşlem Türü *</label>
+                                        <select class="form-select border-primary" id="i_tur" required>
+                                            <option value="Tahsilat">Müşteriden Tahsilat (Giriş)</option>
+                                            <option value="Odeme">Tedarikçiye Ödeme (Çıkış)</option>
+                                            <option value="Kredi_Karti_Odeme">Kredi Kartı Borç Ödemesi</option>
+                                            <option value="Virman">Bankalar / Kasalar Arası Virman</option>
+                                            <option value="Doviz_Alim_Satis">Döviz Alım / Satım</option>
+                                            <option value="Maas">Personel Maaş Ödemesi</option>
+                                            <option value="Vergi_SGK">Vergi / SGK Ödemesi</option>
+                                            <option value="Ortak_Borc_Alacak">Ortaklardan Borç/Alacak</option>
+                                            <option value="Faiz_Gelir">Faiz Geliri</option>
+                                            <option value="Banka_Gider">Banka Masrafı / Komisyon / Faiz Gideri</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">İlgili Cari / Karşı Hesap (Kime/Kimden) *</label>
                                         <select class="form-select" id="i_cariId" required></select>
                                     </div>
                                     <div class="row mb-3">
@@ -2672,7 +2743,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">Açıklama (Dekont No / Detay)</label>
-                                        <input type="text" class="form-control" id="i_aciklama">
+                                        <input type="text" class="form-control" id="i_aciklama" placeholder="Açıklama giriniz...">
                                     </div>
                                 </form>
                             </div>
