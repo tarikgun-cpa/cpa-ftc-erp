@@ -588,24 +588,26 @@
             analizHtml = `<span>Maliyet (Gider): <strong class="text-danger">${cariAlim.toLocaleString('en-US', {minimumFractionDigits: 2})} ${sembol}</strong></span>`;
         }
 
+        let formatliUnvan = cari.unvan.length > 25 ? cari.unvan.substring(0,25) + '...' : cari.unvan;
+
         kartAlani.innerHTML += `
-            <div class="col-md-4 mb-3">
+            <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-3">
                 <div class="card border-0 shadow-sm h-100 rounded-3" style="background-color: #ffffff; border-left: 4px solid ${leftBorderColor} !important;">
-                    <div class="card-body cursor-pointer position-relative pb-2" onclick="cariEkstreAc('${cari.id}')">
-                        <span class="badge position-absolute top-0 end-0 m-3 px-3 py-2 shadow-sm fs-6 rounded-pill" style="${paraBirimiRengi}">${birim}</span>
-                        <h6 class="fw-bold text-truncate pe-5 mb-1" style="color: #2c3e50;" title="${cari.unvan}">${cari.unvan}</h6>
-                        <small class="text-muted"><i class="fas fa-globe-europe me-1" style="color: #7f8c8d;"></i>${cari.ulke} | ${cari.grup === 'Alici' ? 'Müşteri' : 'Tedarikçi'} (${cari.bolge === 'Yerli' ? 'Yerli' : 'Yabancı'})</small>
-                        <div class="mt-3 mb-2">
-                            <span class="small text-muted d-block mb-1">${bDurum}</span>
-                            <h3 class="${bRenk} mb-0 fw-bold">${Math.abs(bakiye).toLocaleString('en-US', {minimumFractionDigits: 2})} ${sembol}</h3>
+                    <div class="card-body cursor-pointer position-relative p-2" onclick="cariEkstreAc('${cari.id}')">
+                        <span class="badge position-absolute top-0 end-0 m-2 px-2 py-1 shadow-sm rounded-pill" style="${paraBirimiRengi}; font-size: 0.65rem;">${birim}</span>
+                        <h6 class="fw-bold mb-1" style="color: #2c3e50; font-size: 0.8rem; line-height: 1.2; padding-right: 30px;" title="${cari.unvan}">${formatliUnvan}</h6>
+                        <small class="text-muted" style="font-size: 0.65rem;"><i class="fas fa-globe-europe me-1" style="color: #7f8c8d;"></i>${cari.ulke} | ${cari.grup === 'Alici' ? 'Müşteri' : 'Tedarikçi'}</small>
+                        <div class="mt-2 mb-1">
+                            <span class="text-muted d-block mb-1" style="font-size: 0.65rem;">${bDurum}</span>
+                            <h4 class="${bRenk} mb-0 fw-bold" style="font-size: 1.1rem; letter-spacing: -0.5px;">${Math.abs(bakiye).toLocaleString('en-US', {minimumFractionDigits: 2})} ${sembol}</h4>
                         </div>
-                        <div class="d-flex justify-content-between border-top pt-2 mt-3 text-muted" style="font-size:11px;">
+                        <div class="border-top pt-2 mt-2 text-muted" style="font-size:0.65rem;">
                             ${analizHtml}
                         </div>
                     </div>
-                    <div class="card-footer bg-light border-top-0 text-end py-2">
-                        <button class="btn btn-sm btn-outline-secondary py-0 me-1" title="Düzenle" onclick="cariDuzenleAc('${cari.id}')"><i class="fas fa-edit"></i> Düzenle</button>
-                        <button class="btn btn-sm btn-outline-danger py-0" title="Sil" onclick="cariSil('${cari.id}')"><i class="fas fa-trash"></i></button>
+                    <div class="card-footer bg-light border-top-0 text-end p-1">
+                        <button class="btn btn-outline-secondary py-0 px-2 me-1" style="font-size: 0.7rem;" title="Düzenle" onclick="cariDuzenleAc('${cari.id}')"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-outline-danger py-0 px-2" style="font-size: 0.7rem;" title="Sil" onclick="cariSil('${cari.id}')"><i class="fas fa-trash"></i></button>
                     </div>
                 </div>
             </div>`;
@@ -810,7 +812,7 @@
       iTbody.innerHTML = ""; yTbody.innerHTML = ""; aTbody.innerHTML = "";
       
       faturaListesi.forEach(fatura => {
-          let sembol = fatura.paraBirimi === 'USD' ? '$' : '€';
+          let sembol = fatura.paraBirimi === 'USD' ? '$' : (fatura.paraBirimi === 'TRY' ? '₺' : '€');
           let islemButonlari = `<button class="btn btn-sm btn-outline-secondary py-0 me-1" title="Kopyala" onclick="faturaKopyalaAc('${fatura.id}')"><i class="fas fa-copy"></i></button><button class="btn btn-sm btn-outline-primary py-0 me-1" title="Düzenle" onclick="faturaDuzenleAc('${fatura.id}')"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline-danger py-0" title="Sil" onclick="faturaSil('${fatura.id}', '${fatura.cariId}', '${fatura.tur}', ${fatura.toplamTutar})"><i class="fas fa-trash"></i></button>`;
           let krt = fatura.kategori ? `<span class="badge bg-light text-dark border ms-1" style="font-size:10px;">${fatura.kategori}</span>` : '';
           let aciklamaT = fatura.aciklama ? `<span class="small text-muted">${fatura.aciklama}</span> ${krt}` : krt;
