@@ -411,17 +411,17 @@
 
     // Temettü (Kâr Payı) Simülatörü Hesaplaması
     let netKar = toplamGelir - toplamGider;
-    let temettuVergisi = netKar > 0 ? netKar * 0.15 : 0;
+    let temettuVergisi = netKar > 0 ? netKar * 0.20 : 0; // Türkiye için genel olarak %20
     let cekilebilirNakit = netKar > 0 ? netKar - temettuVergisi : 0;
 
     let temettuHtml = `
         <div class="mb-2">
-            <span class="text-muted small d-block mb-1">Cebinize Girecek Net Nakit</span>
-            <h4 class="mb-0 fw-bold text-success">${cekilebilirNakit.toLocaleString('en-US', {minimumFractionDigits: 2})} €</h4>
+            <span class="text-muted small d-block mb-1">Net Nakit Puan (Tahmini)</span>
+            <h4 class="mb-0 fw-bold text-success">${cekilebilirNakit.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</h4>
         </div>
         <div class="d-flex justify-content-between border-top pt-2 mt-2" style="font-size:11px;">
-            <span class="text-muted">Brüt Kâr: <strong class="text-dark">${netKar > 0 ? netKar.toLocaleString('en-US', {minimumFractionDigits: 2}) : '0.00'} €</strong></span>
-            <span class="text-muted">Stopaj (15%): <strong class="text-danger">-${temettuVergisi.toLocaleString('en-US', {minimumFractionDigits: 2})} €</strong></span>
+            <span class="text-muted">Brüt Kâr: <strong class="text-dark">${netKar > 0 ? netKar.toLocaleString('tr-TR', {minimumFractionDigits: 2}) : '0,00'} ₺</strong></span>
+            <span class="text-muted">Vergi Yükü (20%): <strong class="text-danger">-${temettuVergisi.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</strong></span>
         </div>
     `;
 
@@ -665,7 +665,7 @@
 
   window.cariEkstreAc = async function(cariId, reRender = false) {
     const cari = cariListesi.find(c => c.id === cariId);
-    let birim = cari.paraBirimi === 'USD' ? '$' : '€';
+    let birim = cari.paraBirimi === 'USD' ? '$' : (cari.paraBirimi === 'EUR' ? '€' : '₺');
     
     let basTarih = reRender && document.getElementById('ex_bas') ? document.getElementById('ex_bas').value : '';
     let bitTarih = reRender && document.getElementById('ex_bit') ? document.getElementById('ex_bit').value : '';
@@ -713,6 +713,9 @@
             <thead class="text-muted small border-bottom border-dark border-2" style="background-color: #f4f6f9;"><tr><th>Tarih</th><th>İşlem Tipi</th><th>Açıklama</th><th class="text-end">Borç (Debit)</th><th class="text-end">Alacak (Credit)</th><th class="text-end">Bakiye</th><th class="d-print-none text-center">İşlem</th></tr></thead>
             <tbody>`;
             
+    // Başlıktaki formatı da düzeltelim
+    html = html.replace(`${Math.abs(cari.bakiye).toFixed(2)}`, `${Math.abs(cari.bakiye).toLocaleString('tr-TR', {minimumFractionDigits: 2})}`);
+
     let yuruyenBakiye = 0; let toplamBorc = 0; let toplamAlacak = 0; let gosterilenKayit = 0;
     
     tamHareketler.forEach(h => {
@@ -722,14 +725,14 @@
 
         gosterilenKayit++;
         let borcStr = '-'; let alacakStr = '-';
-        if(h.tutar > 0) { borcStr = `${h.tutar.toFixed(2)} ${birim}`; toplamBorc += h.tutar; } 
-        else if(h.tutar < 0) { alacakStr = `${Math.abs(h.tutar).toFixed(2)} ${birim}`; toplamAlacak += Math.abs(h.tutar); } 
+        if(h.tutar > 0) { borcStr = `${h.tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ${birim}`; toplamBorc += h.tutar; } 
+        else if(h.tutar < 0) { alacakStr = `${Math.abs(h.tutar).toLocaleString('tr-TR', {minimumFractionDigits: 2})} ${birim}`; toplamAlacak += Math.abs(h.tutar); } 
 
         let silButon = '';
         if(h.tipKodu === 'islem') {
             silButon = `
                 <button class="btn btn-sm btn-outline-secondary py-0 me-1" onclick="makbuzYazdir('${h.id}', '${cariId}', '${h.bankaId}', '${h.orijinalTur}', ${h.mutlakTutar}, '${h.tarih}', '${encodeURIComponent(h.aciklama)}', 'ENG')" title="İngilizce Makbuz"><i class="fas fa-file-invoice-dollar"></i> EN</button>
-                <button class="btn btn-sm btn-outline-secondary py-0 me-1" onclick="makbuzYazdir('${h.id}', '${cariId}', '${h.bankaId}', '${h.orijinalTur}', ${h.mutlakTutar}, '${h.tarih}', '${encodeURIComponent(h.aciklama)}', 'MNE')" title="Türkçe Makbuz"><i class="fas fa-file-invoice-dollar"></i> MNE</button>
+                <button class="btn btn-sm btn-outline-secondary py-0 me-1" onclick="makbuzYazdir('${h.id}', '${cariId}', '${h.bankaId}', '${h.orijinalTur}', ${h.mutlakTutar}, '${h.tarih}', '${encodeURIComponent(h.aciklama)}', 'TR')" title="Türkçe Makbuz"><i class="fas fa-file-invoice-dollar"></i> TR</button>
                 <button class="btn btn-sm btn-outline-danger py-0" onclick="islemSil('${h.id}', '${cariId}', '${h.bankaId}', '${h.orijinalTur}', ${h.mutlakTutar})" title="İşlemi sil"><i class="fas fa-trash"></i></button>
             `;
         } else {
@@ -738,11 +741,11 @@
 
         let bakiyeRenk = yuruyenBakiye >= 0 ? 'text-success' : 'text-danger';
         
-        html += `<tr><td class="small">${h.tarih}</td><td class="small text-muted">${h.tip}</td><td class="small">${h.aciklama}</td><td class="text-end fw-medium text-dark">${borcStr}</td><td class="text-end fw-medium text-dark">${alacakStr}</td><td class="text-end fw-bold ${bakiyeRenk}">${Math.abs(yuruyenBakiye).toFixed(2)} ${birim}</td><td class="d-print-none text-center">${silButon}</td></tr>`;
+        html += `<tr><td class="small">${h.tarih}</td><td class="small text-muted">${h.tip}</td><td class="small">${h.aciklama}</td><td class="text-end fw-medium text-dark">${borcStr}</td><td class="text-end fw-medium text-dark">${alacakStr}</td><td class="text-end fw-bold ${bakiyeRenk}">${Math.abs(yuruyenBakiye).toLocaleString('tr-TR', {minimumFractionDigits: 2})} ${birim}</td><td class="d-print-none text-center">${silButon}</td></tr>`;
     });
 
     if(gosterilenKayit === 0) { html += `<tr><td colspan="7" class="text-center text-muted py-3">Bu tarih aralığında hareket bulunamadı.</td></tr>`; } 
-    html += `<tr class="border-top border-dark border-2" style="background-color: #f4f6f9;"><td colspan="3" class="text-end fw-bold small text-muted">DÖNEM TOPLAMI:</td><td class="text-end fw-bold text-dark">${toplamBorc.toFixed(2)} ${birim}</td><td class="text-end fw-bold text-dark">${toplamAlacak.toFixed(2)} ${birim}</td><td></td><td class="d-print-none"></td></tr>`;
+    html += `<tr class="border-top border-dark border-2" style="background-color: #f4f6f9;"><td colspan="3" class="text-end fw-bold small text-muted">DÖNEM TOPLAMI:</td><td class="text-end fw-bold text-dark">${toplamBorc.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ${birim}</td><td class="text-end fw-bold text-dark">${toplamAlacak.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ${birim}</td><td></td><td class="d-print-none"></td></tr>`;
     html += `</tbody></table></div></div>`;
     html += `<div class="mt-3"><button class="btn btn-secondary shadow-sm" onclick="window.print()"><i class="fas fa-print"></i> Yazdır</button> <button class="btn btn-outline-danger ms-2" onclick="sayfaYukle('cariler')">Kapat</button></div>`;
     document.getElementById('main-content').innerHTML = html;
@@ -804,7 +807,13 @@
       document.getElementById('c_id').value = c.id;
       document.getElementById('c_unvan').value = c.unvan; document.getElementById('c_paraBirimi').value = c.paraBirimi || 'EUR';
       document.getElementById('c_grup').value = c.grup; document.getElementById('c_bolge').value = c.bolge;
-      document.getElementById('c_ulke').value = c.ulke; document.getElementById('c_vergiNo').value = c.vergiNo;
+      const data = {
+          unvan: unvan, paraBirimi: document.getElementById('c_paraBirimi').value, grup: document.getElementById('c_grup').value,
+          bolge: document.getElementById('c_bolge').value, ulke: document.getElementById('c_ulke').value, 
+          vergiDairesi: document.getElementById('c_vergiDairesi') ? document.getElementById('c_vergiDairesi').value : '',
+          vergiNo: document.getElementById('c_vergiNo').value, iban: document.getElementById('c_iban').value, 
+          bic: document.getElementById('c_bic').value, email: document.getElementById('c_email').value
+      };
       document.getElementById('c_iban').value = c.iban; document.getElementById('c_bic').value = c.bic;
       document.getElementById('c_email').value = c.email;
       document.querySelector("#yeniCariModal .modal-title").innerHTML = "Cari Düzenle";
@@ -2383,10 +2392,16 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                                                 <option value="Kasa">Nakit Kasa</option>
                                             </select>
                                         </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label">Para Birimi *</label>
-                                            <select class="form-select" id="b_paraBirimi"><option value="EUR">Euro (€)</option><option value="USD">Dolar ($)</option></select>
-                                        </div>
+                                        <div class="col-md-12 mb-3"><label class="form-label">Para Birimi *</label><select class="form-select" id="c_paraBirimi"><option value="TRY">Türk Lirası (₺)</option><option value="USD">Dolar ($)</option><option value="EUR">Euro (€)</option></select></div>
+                                    <div class="row mb-3">
+                                        <div class="col-md-6"><label class="form-label">Cari Grubu *</label><select class="form-select" id="c_grup"><option value="Alici">Alıcı</option><option value="Satici">Satıcı</option></select></div>
+                                        <div class="col-md-6"><label class="form-label">Bölge *</label><select class="form-select" id="c_bolge"><option value="Yerli">Yurtiçi (Türkiye)</option><option value="Yabanci">Yurtdışı (İhracat / İthalat)</option></select></div>
+                                    </div>
+                                    <div class="row mb-3">
+                                        <div class="col-md-4"><label class="form-label">Ülke</label><input type="text" class="form-control" id="c_ulke" value="Türkiye"></div>
+                                        <div class="col-md-4"><label class="form-label">Vergi Dairesi</label><input type="text" class="form-control" id="c_vergiDairesi"></div>
+                                        <div class="col-md-4"><label class="form-label">Vergi No / TCKN *</label><input type="text" class="form-control" id="c_vergiNo"></div>
+                                    </div>
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">Hesap Adı * (Örn: Merkez Kasa, CKB Euro)</label>
