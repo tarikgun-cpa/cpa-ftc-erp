@@ -632,7 +632,7 @@
                     <div class="card-body cursor-pointer position-relative p-2" onclick="cariEkstreAc('${cari.id}')">
                         <span class="badge position-absolute top-0 end-0 m-2 px-2 py-1 shadow-sm rounded-pill" style="${paraBirimiRengi}; font-size: 0.65rem;">${birim}</span>
                         <h6 class="fw-bold mb-1" style="color: #2c3e50; font-size: 0.8rem; line-height: 1.2; padding-right: 30px;" title="${cari.unvan}">${formatliUnvan}</h6>
-                        <small class="text-muted" style="font-size: 0.65rem;"><i class="fas fa-globe-europe me-1" style="color: #7f8c8d;"></i>${cari.ulke} | ${cari.grup === 'Alici' ? 'Müşteri' : 'Tedarikçi'}</small>
+                        <small class="text-muted" style="font-size: 0.65rem;"><i class="fas fa-globe-europe me-1" style="color: #7f8c8d;"></i>${cari.ulke} | ${cari.grup === 'Alici' ? 'Müşteri' : (cari.grup === 'Satici' ? 'Tedarikçi' : 'Şirket Ortağı')}</small>
                         <div class="mt-2 mb-1">
                             <span class="text-muted d-block mb-1" style="font-size: 0.65rem;">${bDurum}</span>
                             <h4 class="${bRenk} mb-0 fw-bold" style="font-size: 1.1rem; letter-spacing: -0.5px;">${Math.abs(bakiye).toLocaleString('en-US', {minimumFractionDigits: 2})} ${sembol}</h4>
@@ -1082,7 +1082,7 @@
       const cariSelect = document.getElementById('f_cariId');
       cariSelect.innerHTML = '<option value="">-- Cari Seçiniz --</option>';
       cariSelect.innerHTML += `<option value="MUHTELIF_SATICI" class="fw-bold text-primary" ${f.cariId === 'MUHTELIF_SATICI' ? 'selected' : ''}>-- CARİSİZ İŞLEM (Muhtelif Satıcı / Fiş) --</option>`;
-      cariListesi.forEach(c => { cariSelect.innerHTML += `<option value="${c.id}" ${c.id === f.cariId ? 'selected' : ''}>${c.unvan}</option>`; });
+      cariListesi.forEach(c => { cariSelect.innerHTML += `<option value="${c.id}" ${c.id === f.cariId ? 'selected' : ''}>${c.unvan} (${c.grup === 'Alici' ? 'Müşteri' : (c.grup === 'Satici' ? 'Tedarikçi' : 'Ortak')})</option>`; });
 
       document.getElementById('f_id').value = f.id; 
       document.getElementById('f_tur').value = f.tur; 
@@ -1107,7 +1107,7 @@
       const cariSelect = document.getElementById('f_cariId');
       cariSelect.innerHTML = '<option value="">-- Cari Seçiniz --</option>';
       cariSelect.innerHTML += `<option value="MUHTELIF_SATICI" class="fw-bold text-primary" ${f.cariId === 'MUHTELIF_SATICI' ? 'selected' : ''}>-- CARİSİZ İŞLEM (Muhtelif Satıcı / Fiş) --</option>`;
-      cariListesi.forEach(c => { cariSelect.innerHTML += `<option value="${c.id}" ${c.id === f.cariId ? 'selected' : ''}>${c.unvan}</option>`; });
+      cariListesi.forEach(c => { cariSelect.innerHTML += `<option value="${c.id}" ${c.id === f.cariId ? 'selected' : ''}>${c.unvan} (${c.grup === 'Alici' ? 'Müşteri' : (c.grup === 'Satici' ? 'Tedarikçi' : 'Ortak')})</option>`; });
 
       document.getElementById('f_id').value = ''; 
       document.getElementById('f_tur').value = f.tur; 
@@ -1143,7 +1143,7 @@
       const f = faturaListesi.find(x => x.id === id);
       const cariSelect = document.getElementById('f_cariId');
       cariSelect.innerHTML = '<option value="">-- Cari Seçiniz --</option>';
-      cariListesi.forEach(c => { cariSelect.innerHTML += `<option value="${c.id}" ${c.id === f.cariId ? 'selected' : ''}>${c.unvan}</option>`; });
+      cariListesi.forEach(c => { cariSelect.innerHTML += `<option value="${c.id}" ${c.id === f.cariId ? 'selected' : ''}>${c.unvan} (${c.grup === 'Alici' ? 'Müşteri' : (c.grup === 'Satici' ? 'Tedarikçi' : 'Ortak')})</option>`; });
 
       document.getElementById('f_id').value = ''; 
       document.getElementById('f_tur').value = f.tur; 
@@ -1264,7 +1264,7 @@
       const cariSelect = document.getElementById('f_cariId');
       cariSelect.innerHTML = '<option value="">-- Cari Seçiniz --</option>';
       cariSelect.innerHTML += '<option value="MUHTELIF_SATICI" class="fw-bold text-primary">-- CARİSİZ İŞLEM (Muhtelif Satıcı / Fiş) --</option>';
-      cariListesi.forEach(cari => { cariSelect.innerHTML += `<option value="${cari.id}">${cari.unvan} (${cari.grup === 'Alici' ? 'Müşteri' : 'Tedarikçi'})</option>`; });
+      cariListesi.forEach(cari => { cariSelect.innerHTML += `<option value="${cari.id}">${cari.unvan} (${cari.grup === 'Alici' ? 'Müşteri' : (cari.grup === 'Satici' ? 'Tedarikçi' : 'Ortak')})</option>`; });
       
       let aktifSekme = document.querySelector('.fatura-tab-btn.active');
       if(aktifSekme) { document.getElementById('f_tur').value = aktifSekme.getAttribute('data-tur'); }
@@ -1285,8 +1285,13 @@
       const id = document.getElementById('f_id').value; 
       let cariId = document.getElementById('f_cariId').value;
       const bankaId = document.getElementById('f_bankaId') ? document.getElementById('f_bankaId').value : null;
-      const faturaNo = document.getElementById('f_faturaNo').value; const tarih = document.getElementById('f_tarih').value;
       const tur = document.getElementById('f_tur').value; const paraBirimi = document.getElementById('f_paraBirimi').value;
+      
+      let faturaNo = document.getElementById('f_faturaNo').value; 
+      // Fiş ise ve no girilmemişse otomatik no ver, engelleme
+      if(tur === 'Fis_OKC' && faturaNo.trim() === '') { faturaNo = 'FIS-' + Math.floor(Math.random() * 100000); }
+      
+      const tarih = document.getElementById('f_tarih').value;
       const tutar = parseFloat(document.getElementById('f_tutar').value) || 0; const kdvOran = parseFloat(document.getElementById('f_kdvOran').value) || 0;
       const kdvTutar = parseFloat(document.getElementById('f_kdvTutar').value) || 0; const toplamTutar = parseFloat(document.getElementById('f_toplam').value) || 0;
       const aciklama = document.getElementById('f_aciklama').value || '';
@@ -1604,6 +1609,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
   window.islemModalAc = function(tur, bankaId) {
       document.getElementById('i_tur').value = tur;
       document.getElementById('i_bankaId').value = bankaId;
+      document.getElementById('i_anaYon').value = tur; // Tıklanan butonun GERÇEK yönünü sakla
       document.getElementById('islemModalBaslik').innerHTML = tur === 'Tahsilat' ? 'Tahsilat Al (Giriş)' : 'Ödeme Yap (Çıkış)';
       
       if(typeof window.islemTuruDegisti === 'function') window.islemTuruDegisti();
@@ -1613,6 +1619,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
 
   window.islemKaydet = async function() {
       const tur = document.getElementById('i_tur').value; 
+      const anaYon = document.getElementById('i_anaYon').value; // Dropdown değişse bile buton yönü sabit kalır
       const bankaId = document.getElementById('i_bankaId').value;
       const cariId = document.getElementById('i_cariId').value;
       const tutar = parseFloat(document.getElementById('i_tutar').value) || 0;
@@ -1627,14 +1634,14 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
 
       try {
           if(isVirman) {
-              let bankaFarki = tur === 'Tahsilat' ? tutar : -tutar;
-              let karsiFark = tur === 'Tahsilat' ? -tutar : tutar;
+              let bankaFarki = anaYon === 'Tahsilat' ? tutar : -tutar;
+              let karsiFark = anaYon === 'Tahsilat' ? -tutar : tutar;
               
               await addDoc(collection(db, "hesapHareketleri"), {
-                  bankaId: bankaId, cariId: 'SISTEM_VIRMAN', tur: tur, tutar: tutar, aciklama: aciklama + ' (Giren)', tarih: new Date(document.getElementById('i_tarih').value)
+                  bankaId: bankaId, cariId: 'SISTEM_VIRMAN', tur: anaYon, tutar: tutar, aciklama: aciklama + ' (İşlem Yapan)', tarih: new Date(document.getElementById('i_tarih').value)
               });
               await addDoc(collection(db, "hesapHareketleri"), {
-                  bankaId: cariId, cariId: 'SISTEM_VIRMAN', tur: tur === 'Tahsilat' ? 'Odeme' : 'Tahsilat', tutar: tutar, aciklama: aciklama + ' (Çıkan)', tarih: new Date(document.getElementById('i_tarih').value)
+                  bankaId: cariId, cariId: 'SISTEM_VIRMAN', tur: anaYon === 'Tahsilat' ? 'Odeme' : 'Tahsilat', tutar: tutar, aciklama: aciklama + ' (Karşı Hesap)', tarih: new Date(document.getElementById('i_tarih').value)
               });
               
               await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(bankaFarki) });
@@ -1645,11 +1652,11 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                   tarih: new Date(document.getElementById('i_tarih').value)
               });
 
-              const bakiyeDegisimi = tur === 'Tahsilat' ? tutar : -tutar;
+              const bakiyeDegisimi = anaYon === 'Tahsilat' ? tutar : -tutar;
               await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(bakiyeDegisimi) });
 
               if (cariId !== "SISTEM_DEVIR" && cariId !== "VERGI_DAIRESI" && cariId !== "MUHTELIF_SATICI") {
-                  const cariBakiyeDegisimi = tur === 'Tahsilat' ? -tutar : tutar;
+                  const cariBakiyeDegisimi = anaYon === 'Tahsilat' ? -tutar : tutar;
                   await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(cariBakiyeDegisimi) });
               }
           }
@@ -1770,22 +1777,26 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                   else if((aciklamaNorm.includes('masraf') || aciklamaNorm.includes('komisyon') || aciklamaNorm.includes('eft ucreti') || aciklamaNorm.includes('faiz')) && anaYon === 'Odeme') { eslesenCariId = 'SISTEM_BANKA'; islemTuruOto = 'Banka_Gider'; }
                   else if(aciklamaNorm.includes('ortaga borc') || aciklamaNorm.includes('sermaye avansi') || aciklamaNorm.includes('ortaktan')) { eslesenCariId = 'SISTEM_ORTAK'; islemTuruOto = 'Ortak_Borc_Alacak'; }
                   else {
-                      // 2. ADIM: TAM Kelime Eşleşmesi (Hecelerin karışmasını önler)
+                      // 2. ADIM: KATI Kelime Eşleşmesi (Sahte eşleşmeleri sıfıra indirir)
                       let siraliCari = [...cariListesi].sort((a,b) => b.unvan.length - a.unvan.length);
-                      let yasakliKelimeler = ['as', 'ltd', 'sti', 'sanayi', 'ticaret', 'pazarlama', 'grup', 'san', 'tic', 've'];
+                      let yasakli = ['as', 'ltd', 'sti', 'sanayi', 'ticaret', 'pazarlama', 'grup', 'san', 'tic', 've', 'anonim', 'sirketi', 'insaat', 'lojistik', 'hizmetleri'];
                       
                       for(let c of siraliCari) {
                           let cariNorm = normalizeString(c.unvan);
-                          let cariKelimeleri = cariNorm.split(' ').filter(w => w.length > 2 && !yasakliKelimeler.includes(w));
+                          let cariKelimeleri = cariNorm.split(' ').filter(w => w.length > 3 && !yasakli.includes(w)); // Sadece 3 harften büyük anlamlı kelimeler
                           
-                          let eslesti = false;
-                          for(let cw of cariKelimeleri) {
-                              if(aciklamaKelimeleri.includes(cw)) { eslesti = true; break; }
-                          }
-                          
-                          if(eslesti || aciklamaNorm.includes(cariNorm.replace(/\s/g, ''))) {
-                              eslesenCariId = c.id;
-                              break;
+                          // Eğer firmanın en az 1 "anlamlı" kelimesi varsa ve o kelime açıklamada birebir BAĞIMSIZ KELİME olarak geçiyorsa
+                          if(cariKelimeleri.length > 0) {
+                              // Tüm anlamlı kelimelerin en az %50'si geçmek zorunda (Güvenilirlik artışı)
+                              let eslesenKelimeSayisi = 0;
+                              for(let cw of cariKelimeleri) {
+                                  if(aciklamaKelimeleri.includes(cw)) eslesenKelimeSayisi++;
+                              }
+                              
+                              if(eslesenKelimeSayisi > 0 && eslesenKelimeSayisi >= Math.ceil(cariKelimeleri.length / 2)) {
+                                  eslesenCariId = c.id; 
+                                  break;
+                              }
                           }
                       }
                   }
@@ -2863,6 +2874,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                             <div class="modal-body">
                                 <form id="islemForm">
                                     <input type="hidden" id="i_bankaId">
+                                    <input type="hidden" id="i_anaYon">
                                     
                                     <div class="mb-3">
                                         <label class="form-label">İşlem Türü *</label>
