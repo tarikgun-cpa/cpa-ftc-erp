@@ -74,9 +74,11 @@
         .dash-card { background: linear-gradient(145deg, #ffffff, #f8fafc); border: 1px solid #e2e8f0; border-radius: 8px; transition: transform 0.2s; }
         .dash-card:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.05) !important; }
     </style>
-    <!-- Grafik Kütüphanesi -->
+    <!-- Grafik ve Excel Kütüphaneleri -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
+
 <body>
 
 <!-- GİRİŞ EKRANI -->
@@ -279,17 +281,25 @@
       try {
           let res = await fetch('https://open.er-api.com/v6/latest/USD');
           let data = await res.json();
-          if(data && data.rates && data.rates.TRY) {
+          if(data && data.rates && data.rates.TRY && data.rates.EUR) {
               let tryRate = data.rates.TRY.toFixed(2); 
-              let kurInput = document.getElementById('dash_usd_kur');
-              if(kurInput && kurInput.value !== tryRate) {
-                  kurInput.value = tryRate;
-                  window.dashboardCiz(); 
-              }
+              let eurRate = (data.rates.TRY / data.rates.EUR).toFixed(2);
+              
+              let kurInputUsd = document.getElementById('dash_usd_kur');
+              let kurInputEur = document.getElementById('dash_eur_kur');
+              
+              let changed = false;
+              if(kurInputUsd && kurInputUsd.value !== tryRate) { kurInputUsd.value = tryRate; changed = true; }
+              if(kurInputEur && kurInputEur.value !== eurRate) { kurInputEur.value = eurRate; changed = true; }
+              
+              if(changed) window.dashboardCiz(); 
+              
               localStorage.setItem('ev_usd_try', tryRate);
-              localStorage.setItem('ev_eur_try', (data.rates.TRY / data.rates.EUR).toFixed(2));
+              localStorage.setItem('ev_eur_try', eurRate);
+              
+              if(typeof window.tickerGuncelle === 'function') window.tickerGuncelle();
           }
-      } catch(e) { console.log("Canlı kur çekilemedi, sistemdeki son değer kullanılacak."); }
+      } catch(e) { console.log("Canlı kur çekilemedi."); }
   };
 
   window.dashboardCiz = function() {
@@ -506,11 +516,12 @@
       let notlar = JSON.parse(localStorage.getItem('ev_dashboard_notlar') || '[]');
       let notMetni = notlar.length > 0 ? notlar.join(' <span class="sep">●</span> ') : "Sisteme hoş geldiniz...";
       
-      let usdKur = document.getElementById('dash_usd_kur') ? document.getElementById('dash_usd_kur').value : '0.92';
-      let kurMetni = `<span class="highlight">EUR/USD PARİTE:</span> ${usdKur} <i class="fas fa-caret-up text-success ms-1"></i>`;
+      let usdKur = document.getElementById('dash_usd_kur') ? document.getElementById('dash_usd_kur').value : (localStorage.getItem('ev_usd_try') || '34.50');
+      let eurKur = document.getElementById('dash_eur_kur') ? document.getElementById('dash_eur_kur').value : (localStorage.getItem('ev_eur_try') || '38.20');
+      
+      let kurMetni = `<span class="highlight">USD/TRY:</span> ${usdKur} ₺ <span class="sep">|</span> <span class="highlight">EUR/TRY:</span> ${eurKur} ₺`;
       let sistemMetni = `<span class="highlight">SİSTEM DURUMU:</span> Tüm kasa ve banka bakiyeleri günceldir <i class="fas fa-check-circle ms-1" style="color:#10b981;"></i>`;
 
-      // Borsa hissi vermek için içerik kendini tekrar etmeli
       let serit = `
           <span class="sep">●</span> ${notMetni} 
           <span class="sep">●</span> ${kurMetni} 
@@ -1045,6 +1056,92 @@
           const bakiyeDegisimi = (tur === 'Satis' || tur === 'Ihracat' || tur === 'YerelSatis') ? -tutar : tutar;
           await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(bakiyeDegisimi) });
       } catch(e) { alert("Hata: " + e.message); }
+  };
+
+  window.excelModalAc = function() {
+      document.getElementById('excel_dosya').value = "";
+      new bootstrap.Modal(document.getElementById('excelModal')).show();
+  };
+
+  window.excelIsle = function() {
+      const fileInput = document.getElementById('excel_dosya');
+      const tur = document.getElementById('excel_tur').value;
+      if(fileInput.files.length === 0) { alert("Lütfen bir excel dosyası seçin."); return; }
+      
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+      const btn = document.querySelector("#excelModal .btn-success");
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> İşleniyor...'; btn.disabled = true;
+
+      reader.onload = async function(e) {
+          try {
+              const data = new Uint8Array(e.target.result);
+              const workbook = XLSX.read(data, {type: 'array', cellDates: true});
+              const sheet = workbook.Sheets[workbook.SheetNames[0]];
+              const rows = XLSX.utils.sheet_to_json(sheet);
+
+              let islenen = 0; let yeniCari = 0;
+              let cariGrup = tur === 'Alim' ? 'Satici' : 'Alici';
+
+              for (let r of rows) {
+                  let unvan = r['Ünvanı/Adı Soyadı'] || r['Unvan'] || r['Müşteri'] || 'Bilinmeyen Cari';
+                  let vkn = String(r['Vkn/Tckn'] || r['VKN'] || '11111111111').trim();
+                  let fatNo = r['Fatura No.'] || r['Fatura No'] || 'EXC-'+Date.now().toString().slice(-6);
+                  let topTutar = parseFloat(r['Toplam Tutar']) || 0;
+                  
+                  if(topTutar <= 0) continue;
+                  
+                  let aciklama = r['Açıklama'] || 'Toplu E-Fatura Aktarımı';
+                  
+                  let tarih = new Date().toISOString().split('T')[0];
+                  if(r['Fatura Tarihi']) {
+                      if(r['Fatura Tarihi'] instanceof Date) {
+                          tarih = r['Fatura Tarihi'].toISOString().split('T')[0];
+                      } else if(typeof r['Fatura Tarihi'] === 'string') {
+                          let fT = r['Fatura Tarihi'].trim();
+                          if(fT.includes('.')) { let p = fT.split('.'); if(p.length===3) tarih = `${p[2]}-${p[1]}-${p[0]}`; }
+                      }
+                  }
+
+                  let kdv20 = parseFloat(r['Kdv%20']) || parseFloat(r['KDV%20']) || 0; 
+                  let kdv10 = parseFloat(r['Kdv%10']) || parseFloat(row['KDV%10']) || 0; 
+                  let kdv1 = parseFloat(r['Kdv%1']) || parseFloat(row['KDV%1']) || 0;
+                  let kdvOran = 0; let kdv = 0; let matrah = topTutar;
+                  
+                  if(kdv20 > 0) { kdv = kdv20; kdvOran = 20; matrah = parseFloat(r['Kdv Matrahı %20']) || (topTutar - kdv); }
+                  else if(kdv10 > 0) { kdv = kdv10; kdvOran = 10; matrah = parseFloat(r['Kdv Matrahı %10']) || (topTutar - kdv); }
+                  else if(kdv1 > 0) { kdv = kdv1; kdvOran = 1; matrah = parseFloat(r['Kdv Matrahı %1']) || (topTutar - kdv); }
+
+                  let cariId = ''; let cariUnvan = unvan;
+                  let cBulundu = cariListesi.find(c => c.vergiNo === vkn || c.unvan.toLowerCase() === unvan.toLowerCase());
+                  
+                  if(cBulundu) {
+                      cariId = cBulundu.id; cariUnvan = cBulundu.unvan;
+                  } else {
+                      let yeniCariData = { unvan: unvan, vergiNo: vkn, paraBirimi: 'TRY', grup: cariGrup, bolge: 'Yerli', ulke: 'Türkiye', bakiye: 0, olusturmaTarihi: serverTimestamp() };
+                      let docRef = await addDoc(collection(db, "cariler"), yeniCariData);
+                      cariId = docRef.id;
+                      cariListesi.push({ id: docRef.id, ...yeniCariData });
+                      yeniCari++;
+                  }
+
+                  let fatData = { cariId: cariId, cariUnvan: cariUnvan, faturaNo: fatNo, tarih: tarih, tur: tur, paraBirimi: 'TRY', tutar: matrah, kdvOran: kdvOran, kdvTutar: kdv, toplamTutar: topTutar, aciklama: aciklama, kategori: tur==='Alim'?'Genel Gider':'Danışmanlık Geliri', durum: 'Bekliyor', islemTarihi: serverTimestamp() };
+                  
+                  await addDoc(collection(db, "faturalar"), fatData);
+                  await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(tur === 'Alim' ? -topTutar : topTutar) });
+                  islenen++;
+              }
+              
+              bootstrap.Modal.getInstance(document.getElementById('excelModal')).hide();
+              alert(`İşlem Tamamlandı!\n${islenen} adet fatura başarıyla aktarıldı.\n${yeniCari} adet yeni Cari Kart otomatik olarak açıldı.`);
+          } catch(err) {
+              alert("Dosya okunamadı. E-Fatura entegratör formatındaki standart Excel tablosu olduğundan emin olun.");
+              console.error(err);
+          } finally {
+              btn.innerHTML = '<i class="fas fa-upload"></i> Dosyayı Aktar'; btn.disabled = false;
+          }
+      };
+      reader.readAsArrayBuffer(file);
   };
 
   window.faturaModalAc = function() {
@@ -1816,10 +1913,15 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                         <h2 class="mb-1 text-dark fw-bold" style="letter-spacing: -0.5px;">Yönetici Özeti</h2>
                     </div>
                     <div class="d-flex gap-2">
-                        <div class="d-flex align-items-center bg-white p-1 px-2 rounded shadow-sm border border-light" title="USD/EUR Çevrim Kuru (Merkez Bankası Simülasyonu)">
-                            <i class="fas fa-euro-sign text-muted me-1"></i><small class="text-muted me-1">1$ =</small>
-                            <input type="number" id="dash_usd_kur" class="form-control form-control-sm border-0 bg-transparent fw-bold p-0 text-center text-primary" value="0.92" step="0.01" style="width: 45px; outline:none; box-shadow:none;" onchange="dashboardCiz()">
+                        <div class="d-flex align-items-center bg-white p-1 px-2 rounded shadow-sm border border-light" title="USD/TRY Çevrim Kuru">
+                            <i class="fas fa-dollar-sign text-muted me-1"></i><small class="text-muted me-1">USD:</small>
+                            <input type="number" id="dash_usd_kur" class="form-control form-control-sm border-0 bg-transparent fw-bold p-0 text-center text-primary" value="34.50" step="0.01" style="width: 55px; outline:none; box-shadow:none;" onchange="dashboardCiz()">
                         </div>
+                        <div class="d-flex align-items-center bg-white p-1 px-2 rounded shadow-sm border border-light ms-2" title="EUR/TRY Çevrim Kuru">
+                            <i class="fas fa-euro-sign text-muted me-1"></i><small class="text-muted me-1">EUR:</small>
+                            <input type="number" id="dash_eur_kur" class="form-control form-control-sm border-0 bg-transparent fw-bold p-0 text-center text-primary" value="38.20" step="0.01" style="width: 55px; outline:none; box-shadow:none;" onchange="dashboardCiz()">
+                        </div>
+
                         <div class="d-flex align-items-center bg-white p-2 rounded shadow-sm border border-light">
                             <i class="fas fa-calendar-alt text-muted me-2 ps-1"></i>
                             <select class="form-select form-select-sm border-0 bg-transparent fw-bold p-0 pe-3" id="dash_yil_secici" onchange="dashboardCiz()" style="width: 65px; outline:none; box-shadow:none;">
@@ -2033,7 +2135,8 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h2>Faturalar</h2>
                     <div>
-                        <button class="btn btn-outline-info shadow-sm me-2" onclick="proformaAc()"><i class="fas fa-file-alt"></i> Yeni Proforma (Taslak)</button>
+                        <button class="btn btn-success shadow-sm me-2" onclick="excelModalAc()"><i class="fas fa-file-excel"></i> Excel'den Yükle</button>
+                        <button class="btn btn-outline-info shadow-sm me-2" onclick="proformaAc()"><i class="fas fa-file-alt"></i> Yeni Proforma</button>
                         <button class="btn btn-primary shadow-sm" onclick="faturaModalAc()"><i class="fas fa-plus"></i> Yeni Fatura İşle</button>
                     </div>
                 </div>
@@ -2118,6 +2221,40 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                     </div>
                 </div>
 
+                <!-- EXCEL YÜKLEME MODALI -->
+                <div class="modal fade" id="excelModal" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header bg-success text-white">
+                                <h5 class="modal-title"><i class="fas fa-file-excel me-2"></i>Excel'den Toplu Fatura Yükle</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label class="form-label text-muted small mb-1">Yüklenecek Fatura Yönü</label>
+                                    <select class="form-select" id="excel_tur">
+                                        <option value="YerelSatis">Yurtiçi Satış Faturaları (Kestiğimiz)</option>
+                                        <option value="Ihracat">Mal/Hizmet İhracatı (Kestiğimiz)</option>
+                                        <option value="Alim">Alım Faturaları (Gelen Giderler)</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label text-muted small mb-1">E-Fatura Excel Dosyası Seçin (.xlsx)</label>
+                                    <input type="file" id="excel_dosya" class="form-control" accept=".xlsx, .xls">
+                                </div>
+                                <div class="alert alert-info small py-2 mb-0">
+                                    <i class="fas fa-info-circle"></i> Sistem "Vkn/Tckn" ve "Ünvanı" sütunlarını tarar. Cari hesap bulunamazsa <b>otomatik olarak yeni kart açılır</b>.
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                                <button type="button" class="btn btn-success" onclick="excelIsle()"><i class="fas fa-upload"></i> Dosyayı Aktar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
                 <!-- PROFORMA ÜRETİCİ MODALI -->
                 <div class="modal fade" id="proformaModal" tabindex="-1">
                     <div class="modal-dialog">
@@ -2136,7 +2273,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                                         <div class="col-md-6"><label class="form-label text-muted small mb-1">Para Birimi *</label><select class="form-select" id="p_paraBirimi"><option value="EUR">Euro (€)</option><option value="USD">Dolar ($)</option></select></div>
                                     </div>
                                     <div class="mb-3"><label class="form-label text-muted small mb-1">Hizmet / Danışmanlık Açıklaması *</label><textarea class="form-control" id="p_aciklama" rows="2" placeholder="Consultancy services for..."></textarea></div>
-                                    <div class="mb-3"><label class="form-label text-muted small mb-1">Yazdırma Dili *</label><select class="form-select" id="p_dil"><option value="ENG">İngilizce (English)</option><option value="TR">Türkçe (Crnogorski)</option></select></div>
+                                    <div class="mb-3"><label class="form-label text-muted small mb-1">Yazdırma Dili *</label><select class="form-select" id="p_dil"><option value="ENG">İngilizce (English)</option><option value="TR">Türkçe (TR)</option></select></div>
                                     <div class="alert alert-warning small py-2 mb-0"><i class="fas fa-info-circle"></i> Proformalar sistem bakiyesini etkilemez. Kaydettikten sonra listeden düzenleyebilir veya yazdırabilirsiniz.</div>
                                 </form>
                             </div>
