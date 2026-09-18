@@ -155,6 +155,7 @@
   let aiGecmisListesi = [];
   
   let proformaListesi = [];
+  let panoNotlari = [];
   let cariDinleyici = null; 
   let faturaDinleyici = null; 
 
@@ -241,6 +242,14 @@
               if (docSnap.exists()) { kunyeVerisi = docSnap.data(); } 
               else { kunyeVerisi = {}; }
               if (document.getElementById('kunyeKarti')) { window.kunyeCiz(); }
+          });
+
+          // PANO NOTLARI DİNLE (Gerçek Zamanlı Bulut)
+          onSnapshot(doc(db, "ayarlar", "notlar"), (docSnap) => {
+              if (docSnap.exists() && docSnap.data().liste) { panoNotlari = docSnap.data().liste; } 
+              else { panoNotlari = []; }
+              if (document.getElementById('notlar_listesi')) { window.notListesiniCiz(); }
+              if (typeof window.tickerGuncelle === 'function') { window.tickerGuncelle(); }
           });
 
           // AI SOHBET GEÇMİŞİNİ DİNLE
@@ -443,7 +452,7 @@
         <div class="mb-3">
             <div class="d-flex justify-content-between mb-1">
                 <span class="small fw-medium" style="color:#334155;">${kat}</span>
-                <span class="small text-danger fw-bold">${tutar.toLocaleString('en-US', {minimumFractionDigits: 2})} €</span>
+                <span class="small text-danger fw-bold">${tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</span>
             </div>
             <div class="progress" style="height: 6px; background-color: #f1f5f9;">
                 <div class="progress-bar bg-danger" role="progressbar" style="width: ${yuzde}%" aria-valuenow="${yuzde}" aria-valuemin="0" aria-valuemax="100"></div>
@@ -501,11 +510,10 @@
   };
 
   window.notListesiniCiz = function() {
-      let notlar = JSON.parse(localStorage.getItem('ev_dashboard_notlar') || '[]');
       let liste = document.getElementById('notlar_listesi');
       if(!liste) return;
       liste.innerHTML = '';
-      notlar.forEach((not, index) => {
+      panoNotlari.forEach((not, index) => {
           liste.innerHTML += `
               <li class="list-group-item d-flex justify-content-between align-items-center px-0">
                   <span class="small text-dark">${not}</span>
@@ -513,36 +521,34 @@
               </li>
           `;
       });
-      if(notlar.length === 0) liste.innerHTML = '<li class="list-group-item px-0 text-muted small border-0">Aktif notunuz bulunmuyor.</li>';
+      if(panoNotlari.length === 0) liste.innerHTML = '<li class="list-group-item px-0 text-muted small border-0">Aktif notunuz bulunmuyor.</li>';
   };
 
-  window.yeniNotKaydet = function() {
+  window.yeniNotKaydet = async function() {
       let input = document.getElementById('yeni_not_input');
       let yeniNot = input.value.trim();
       if(yeniNot !== "") {
-          let notlar = JSON.parse(localStorage.getItem('ev_dashboard_notlar') || '[]');
-          notlar.push(yeniNot);
-          localStorage.setItem('ev_dashboard_notlar', JSON.stringify(notlar));
-          input.value = '';
-          window.notListesiniCiz();
-          window.tickerGuncelle();
+          let yeniListe = [...panoNotlari, yeniNot];
+          try {
+              await setDoc(doc(db, "ayarlar", "notlar"), { liste: yeniListe });
+              input.value = '';
+          } catch (e) { alert("Hata: " + e.message); }
       }
   };
 
-  window.notSil = function(index) {
-      let notlar = JSON.parse(localStorage.getItem('ev_dashboard_notlar') || '[]');
-      notlar.splice(index, 1);
-      localStorage.setItem('ev_dashboard_notlar', JSON.stringify(notlar));
-      window.notListesiniCiz();
-      window.tickerGuncelle();
+  window.notSil = async function(index) {
+      let yeniListe = [...panoNotlari];
+      yeniListe.splice(index, 1);
+      try {
+          await setDoc(doc(db, "ayarlar", "notlar"), { liste: yeniListe });
+      } catch (e) { alert("Hata: " + e.message); }
   };
 
   window.tickerGuncelle = function() {
       let el = document.getElementById('dash_ticker_text');
       if (!el) return;
       
-      let notlar = JSON.parse(localStorage.getItem('ev_dashboard_notlar') || '[]');
-      let notMetni = notlar.length > 0 ? notlar.join(' <span class="sep">●</span> ') : "Sisteme hoş geldiniz...";
+      let notMetni = panoNotlari.length > 0 ? panoNotlari.join(' <span class="sep">●</span> ') : "Sisteme hoş geldiniz...";
       
       let usdKur = document.getElementById('dash_usd_kur') ? document.getElementById('dash_usd_kur').value : (localStorage.getItem('ev_usd_try') || '34.50');
       let eurKur = document.getElementById('dash_eur_kur') ? document.getElementById('dash_eur_kur').value : (localStorage.getItem('ev_eur_try') || '38.20');
@@ -1020,14 +1026,14 @@
       let secenekler = new Set();
       let isSatis = (tur === 'Ihracat' || tur === 'YerelSatis' || tur === 'Satis');
       
-      // Standart Varsayılan Kategoriler
       if(isSatis) {
           secenekler.add('Danışmanlık Geliri'); secenekler.add('Proje Geliri'); secenekler.add('Diğer Gelir');
+      } else if (tur === 'Fis_OKC') {
+          secenekler.add('Akaryakıt / Ulaşım'); secenekler.add('Yemek / Temsil Ağırlama'); secenekler.add('Kırtasiye / Ofis'); secenekler.add('Kargo / Posta');
       } else {
-          secenekler.add('Muhasebe / Yasal'); secenekler.add('Maaş / SGK'); secenekler.add('Seyahat / Temsil'); secenekler.add('Yazılım / IT'); secenekler.add('Banka / Finansman'); secenekler.add('Genel Gider');
+          secenekler.add('Muhasebe / Yasal'); secenekler.add('Maaş / SGK'); secenekler.add('Seyahat / Konaklama'); secenekler.add('Yazılım / IT'); secenekler.add('Genel Gider');
       }
 
-      // Geçmiş faturalardan kullanıcının eklediği yeni kategorileri otomatik bul ve listeye ekle
       faturaListesi.forEach(f => {
           let fIsSatis = (f.tur === 'Ihracat' || f.tur === 'YerelSatis' || f.tur === 'Satis');
           if (fIsSatis === isSatis && f.kategori) {
@@ -1036,9 +1042,31 @@
       });
 
       datalist.innerHTML = '';
-      secenekler.forEach(kat => {
-          datalist.innerHTML += `<option value="${kat}"></option>`;
-      });
+      secenekler.forEach(kat => { datalist.innerHTML += `<option value="${kat}"></option>`; });
+  };
+
+  // Fiş seçilirse Banka seçimini aktif et
+  window.fisSecimiKontrol = function() {
+      const tur = document.getElementById('f_tur').value;
+      const cariDiv = document.getElementById('f_cari_sutun');
+      const bankaDiv = document.getElementById('f_banka_sutun');
+      const cariEtiket = document.getElementById('f_cari_etiket');
+      const bankaSelect = document.getElementById('f_bankaId');
+
+      if(tur === 'Fis_OKC') {
+          cariDiv.classList.replace('col-md-12', 'col-md-6');
+          bankaDiv.classList.remove('d-none');
+          cariEtiket.innerHTML = "Harcama Yapılan Yer (Satıcı)";
+          
+          bankaSelect.innerHTML = '<option value="">-- Kasa / Kredi Kartı Seçin --</option>';
+          bankaListesi.forEach(b => { 
+              bankaSelect.innerHTML += `<option value="${b.id}">${b.hesapAdi} (${b.paraBirimi})</option>`; 
+          });
+      } else {
+          bankaDiv.classList.add('d-none');
+          cariDiv.classList.replace('col-md-6', 'col-md-12');
+          cariEtiket.innerHTML = "Cari Hesap (Firma) *";
+      }
   };
 
   window.faturaDuzenleAc = function(id) {
@@ -1209,7 +1237,10 @@
   };
 
   window.faturaKaydet = async function() {
-      const id = document.getElementById('f_id').value; const cariId = document.getElementById('f_cariId').value;
+      const id = document.getElementById('f_id').value; 
+      const cariId = document.getElementById('f_cariId').value;
+      const bankaId = document.getElementById('f_bankaId') ? document.getElementById('f_bankaId').value : null;
+      
       const faturaNo = document.getElementById('f_faturaNo').value; const tarih = document.getElementById('f_tarih').value;
       const tur = document.getElementById('f_tur').value; const paraBirimi = document.getElementById('f_paraBirimi').value;
       const tutar = parseFloat(document.getElementById('f_tutar').value) || 0; const kdvOran = parseFloat(document.getElementById('f_kdvOran').value) || 0;
@@ -1221,6 +1252,8 @@
       const kategori = document.getElementById('f_kategori').value.trim() || defaultKat;
 
       if(cariId === "" || faturaNo.trim() === "" || tarih === "" || tutar <= 0) { alert("Lütfen Cari, Fatura No, Tarih ve Tutar giriniz."); return; }
+      if(tur === 'Fis_OKC' && !bankaId) { alert("Fiş giderleri peşin kabul edildiğinden lütfen ödemenin yapıldığı kasa/kredi kartını seçin."); return; }
+      
       const kaydetBtn = document.querySelector("#yeniFaturaModal .btn-primary"); kaydetBtn.innerHTML = "İşleniyor..."; kaydetBtn.disabled = true;
 
       try {
@@ -1236,12 +1269,24 @@
               await updateDoc(doc(db, "faturalar", id), { cariId: cariId, cariUnvan: secilenCari.unvan, faturaNo: faturaNo, tarih: tarih, tur: tur, paraBirimi: paraBirimi, tutar: tutar, kdvOran: kdvOran, kdvTutar: kdvTutar, toplamTutar: toplamTutar, aciklama: aciklama, kategori: kategori });
               await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(yeniBakiyeDegisimi) });
           } else {
-              await addDoc(collection(db, "faturalar"), { cariId: cariId, cariUnvan: secilenCari.unvan, faturaNo: faturaNo, tarih: tarih, tur: tur, paraBirimi: paraBirimi, tutar: tutar, kdvOran: kdvOran, kdvTutar: kdvTutar, toplamTutar: toplamTutar, aciklama: aciklama, kategori: kategori, durum: 'Bekliyor', islemTarihi: serverTimestamp() });
-              await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(yeniBakiyeDegisimi) });
+              let yeniFaturaKayit = await addDoc(collection(db, "faturalar"), { cariId: cariId, cariUnvan: secilenCari.unvan, faturaNo: faturaNo, tarih: tarih, tur: tur, paraBirimi: paraBirimi, tutar: tutar, kdvOran: kdvOran, kdvTutar: kdvTutar, toplamTutar: toplamTutar, aciklama: aciklama, kategori: kategori, durum: tur==='Fis_OKC'?'Ödendi':'Bekliyor', islemTarihi: serverTimestamp() });
+              
+              if(tur === 'Fis_OKC') {
+                  // Fiş ise cariye borç yazma, doğrudan kasadan para düş
+                  await addDoc(collection(db, "hesapHareketleri"), {
+                      bankaId: bankaId, cariId: cariId, tur: 'Odeme', tutar: toplamTutar,
+                      aciklama: `Fiş / ÖKC Peşin Alım (${kategori}) FaturaID: ${yeniFaturaKayit.id}`,
+                      tarih: new Date(tarih)
+                  });
+                  await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(-toplamTutar) });
+              } else {
+                  // Normal faturaysa cari hesaba borç/alacak yaz
+                  await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(yeniBakiyeDegisimi) });
+              }
           }
           bootstrap.Modal.getInstance(document.getElementById('yeniFaturaModal')).hide();
           document.getElementById('yeniFaturaForm').reset(); document.getElementById('f_id').value = '';
-      } catch (error) { alert("Hata: " + error.message); } finally { kaydetBtn.innerHTML = "Faturayı İşle"; kaydetBtn.disabled = false; }
+      } catch (error) { alert("Hata: " + error.message); } finally { kaydetBtn.innerHTML = "Faturayı İşle"; kaydetBtn.disabled = false; if(typeof window.fisSecimiKontrol === 'function') window.fisSecimiKontrol(); }
   };
 
   // ---------------- BANKA VE KASA İŞLEMLERİ ----------------
@@ -1402,7 +1447,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
 
               filtrelenenKayitSayisi++;
               let d = h.tarih ? new Date(h.tarih.seconds * 1000).toLocaleDateString('tr-TR') : '-';
-              let cariAdi = h.cariId === "VERGI_DAIRESI" ? "Vergi / Yasal Kurum" : (cariListesi.find(c => c.id === h.cariId)?.unvan || 'Silinmiş Cari');
+              let cariAdi = h.cariId === "VERGI_DAIRESI" ? "Vergi / Yasal Kurum" : (h.cariId === "SISTEM_DEVIR" ? "Açılış Bakiyesi / Devir" : (cariListesi.find(c => c.id === h.cariId)?.unvan || 'Silinmiş Cari'));
               let girisStr = '-'; let cikisStr = '-';
               
               if(h.tur === 'Tahsilat') { girisStr = `${h.tutar.toFixed(2)} ${birim}`; toplamGiris += h.tutar; }
@@ -1497,7 +1542,12 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
       
       const select = document.getElementById('i_cariId');
       select.innerHTML = '<option value="">-- Cari Seçiniz --</option>';
-      cariListesi.forEach(c => { select.innerHTML += `<option value="${c.id}">${c.unvan} (Bakiye: ${c.bakiye}€)</option>`; });
+      select.innerHTML += '<option value="SISTEM_DEVIR" class="fw-bold text-primary">-- KASA / BANKA AÇILIŞ BAKİYESİ (DEVİR) --</option>';
+      
+      cariListesi.forEach(c => { 
+          let paraBrm = c.paraBirimi === 'USD' ? '$' : (c.paraBirimi === 'EUR' ? '€' : '₺');
+          select.innerHTML += `<option value="${c.id}">${c.unvan} (Bakiye: ${c.bakiye}${paraBrm})</option>`; 
+      });
       document.getElementById('i_tarih').value = new Date().toISOString().split('T')[0];
       new bootstrap.Modal(document.getElementById('islemModal')).show();
   };
@@ -1507,9 +1557,9 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
       const bankaId = document.getElementById('i_bankaId').value;
       const cariId = document.getElementById('i_cariId').value;
       const tutar = parseFloat(document.getElementById('i_tutar').value) || 0;
-      const aciklama = document.getElementById('i_aciklama').value;
+      const aciklama = document.getElementById('i_aciklama').value || (cariId === 'SISTEM_DEVIR' ? 'Hesap Açılış Bakiyesi (Devir)' : '');
 
-      if(!cariId || tutar <= 0) { alert("Lütfen cari seçip geçerli bir tutar girin."); return; }
+      if(!cariId || tutar <= 0) { alert("Lütfen cari veya işlem türü seçip geçerli bir tutar girin."); return; }
 
       const btn = document.querySelector("#islemModal .btn-primary");
       btn.disabled = true; btn.innerHTML = "İşleniyor...";
@@ -1523,8 +1573,11 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
           const bakiyeDegisimi = tur === 'Tahsilat' ? tutar : -tutar;
           await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(bakiyeDegisimi) });
 
-          const cariBakiyeDegisimi = tur === 'Tahsilat' ? -tutar : tutar;
-          await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(cariBakiyeDegisimi) });
+          // Açılış bakiyesiyse sahte bir cari aramasına girip hataya düşmesini engelliyoruz
+          if (cariId !== "SISTEM_DEVIR" && cariId !== "VERGI_DAIRESI") {
+              const cariBakiyeDegisimi = tur === 'Tahsilat' ? -tutar : tutar;
+              await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(cariBakiyeDegisimi) });
+          }
 
           bootstrap.Modal.getInstance(document.getElementById('islemModal')).hide();
           document.getElementById('islemForm').reset();
@@ -2481,11 +2534,25 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                                 <form id="yeniFaturaForm">
                                     <input type="hidden" id="f_id">
                                     <div class="row mb-3">
-                                        <div class="col-md-12"><label class="form-label">Cari Hesap (Firma) *</label><select class="form-select" id="f_cariId" required></select></div>
+                                        <div class="col-md-6" id="f_cari_sutun">
+                                            <label class="form-label" id="f_cari_etiket">Cari Hesap (Firma) *</label>
+                                            <select class="form-select" id="f_cariId" required></select>
+                                        </div>
+                                        <div class="col-md-6 d-none" id="f_banka_sutun">
+                                            <label class="form-label text-info"><i class="fas fa-credit-card me-1"></i>Ödenen Kasa/Kart *</label>
+                                            <select class="form-select border-info" id="f_bankaId"></select>
+                                        </div>
                                     </div>
                                     <div class="row mb-3">
-                                        <div class="col-md-4"><label class="form-label">Fatura Yönü *</label><select class="form-select" id="f_tur" onchange="kategorileriDoldur()"><option value="Ihracat">Hizmet/Mal İhracatı</option><option value="YerelSatis">Yurtiçi Satış</option><option value="Alim">Alım (Gider)</option></select></div>
-                                        <div class="col-md-4"><label class="form-label">Fatura Numarası *</label><input type="text" class="form-control" id="f_faturaNo"></div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">Fatura Yönü *</label>
+                                            <select class="form-select border-primary" id="f_tur" onchange="kategorileriDoldur(); fisSecimiKontrol();">
+                                                <option value="Ihracat">Hizmet/Mal İhracatı (Kestiğimiz)</option>
+                                                <option value="YerelSatis">Yurtiçi Satış (Kestiğimiz)</option>
+                                                <option value="Alim">Alım / Gider Faturası (Bize Gelen)</option>
+                                                <option value="Fis_OKC">Fiş / ÖKC (Kartlı-Peşin Harcama)</option>
+                                            </select>
+                                        </div>
                                         <div class="col-md-4"><label class="form-label">Fatura Tarihi *</label><input type="date" class="form-control" id="f_tarih"></div>
                                     </div>
                                     <div class="row mb-3">
