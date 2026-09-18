@@ -1781,48 +1781,73 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                   let aciklamaKelimeleri = aciklamaNorm.split(' ');
                   let tipNorm = normalizeString(hareketTipi);
 
-                  // 1. ADIM: Gelişmiş Kelime Avcısı
-                  if(aciklamaNorm.includes('kredi karti odemesi') || tipNorm.includes('kart odeme')) { 
-                      islemTuruOto = 'Virman'; 
-                      // Kartı kullanıcının seçmesi için boş bırakıyoruz
-                  }
-                  else if(aciklamaNorm.includes('vergi') || aciklamaNorm.includes('sgk') || aciklamaNorm.includes('muhtasar')) { eslesenCariId = 'SISTEM_VERGI'; islemTuruOto = 'Vergi_SGK'; }
-                  else if(aciklamaNorm.includes('maas') || tipNorm.includes('maas')) { eslesenCariId = 'SISTEM_MAAS'; islemTuruOto = 'Maas'; }
-                  else if(aciklamaNorm.includes('doviz alis') || aciklamaNorm.includes('doviz satis') || tipNorm.includes('doviz')) { eslesenCariId = 'SISTEM_DOVIZ'; islemTuruOto = 'Doviz_Alim_Satis'; }
-                  else if(aciklamaNorm.includes('faiz') && anaYon === 'Tahsilat') { eslesenCariId = 'SISTEM_FAIZ'; islemTuruOto = 'Faiz_Gelir'; }
-                  else if((aciklamaNorm.includes('masraf') || aciklamaNorm.includes('komisyon') || aciklamaNorm.includes('eft ucreti') || aciklamaNorm.includes('faiz')) && anaYon === 'Odeme') { eslesenCariId = 'SISTEM_BANKA'; islemTuruOto = 'Banka_Gider'; }
-                  else if(aciklamaNorm.includes('ortaga borc') || aciklamaNorm.includes('sermaye avansi') || aciklamaNorm.includes('ortaktan')) { 
-                      islemTuruOto = 'Ortak_Borc_Alacak';
-                      let ortakCari = cariListesi.find(c => c.grup === 'Ortak');
-                      if (ortakCari) eslesenCariId = ortakCari.id;
-                  }
-                  else {
-                      // 2. ADIM: KATI Kelime Eşleşmesi (Hece karışıklığını %100 çözer)
-                      let siraliCari = [...cariListesi].sort((a,b) => b.unvan.length - a.unvan.length);
-                      let yasakli = ['as', 'ltd', 'sti', 'sanayi', 'ticaret', 'pazarlama', 'grup', 'san', 'tic', 've', 'anonim', 'sirketi', 'insaat', 'lojistik', 'hizmetleri', 'mimarlik', 'otomotiv', 'kardesler', 'dayanikli', 'tuketim', 'mallari'];
-                      
-                      for(let c of siraliCari) {
-                          let cariNorm = normalizeString(c.unvan);
+                  // 1. ADIM: Banka/Kredi Kartı Esnek Kelime Arama
+                  let bankaYasakli = ['kredi', 'karti', 'hesabi', 'sirket', 'sirketi', 'sirketim', 'tl', 'usd', 'eur', 'bankasi', 'bank'];
+                  for (let b of bankaListesi) {
+                      if (b.id !== bankaId) {
+                          let bNorm = normalizeString(b.hesapAdi);
                           
-                          // A) Tam veya boşluksuz birebir eşleşme
-                          if(aciklamaNorm.includes(cariNorm) || aciklamaNorm.replace(/\s/g,'').includes(cariNorm.replace(/\s/g,''))) {
-                              eslesenCariId = c.id; 
+                          // Tam veya boşluksuz eşleşme
+                          if (aciklamaNorm.includes(bNorm) || aciklamaNorm.replace(/\s/g, '').includes(bNorm.replace(/\s/g, ''))) {
+                              eslesenCariId = 'BANKA_' + b.id;
+                              islemTuruOto = b.tur === 'Kredi Karti' ? 'Kredi_Karti_Odeme' : 'Virman';
                               break;
                           }
                           
-                          // B) Marka/İlk Kelime eşleşmesi (Bağımsız kelime olarak)
-                          let cariKelimeleri = cariNorm.split(' ').filter(w => w.length > 2 && !yasakli.includes(w));
-                          if (cariKelimeleri.length > 0) {
-                              let anaMarka = cariKelimeleri[0];
-                              // Eğer açıklamadaki kelimelerden biri, cari markanın tam adıyla BİREBİR aynıysa
-                              if (aciklamaKelimeleri.includes(anaMarka)) {
-                                  eslesenCariId = c.id;
+                          // Esnek Banka Kelimesi Eşleşmesi (Örn: Açıklamadaki Enpara.com ile Karttaki Enpara eşleşir)
+                          let bKelimeleri = bNorm.split(' ').filter(w => w.length > 2 && !bankaYasakli.includes(w));
+                          if (bKelimeleri.length > 0) {
+                              let eslesenBankaKelimesi = 0;
+                              for(let bw of bKelimeleri) {
+                                  if (aciklamaNorm.includes(bw)) eslesenBankaKelimesi++;
+                              }
+                              // Bankaya ait ayırt edici "kök" kelimeler geçiyorsa
+                              if (eslesenBankaKelimesi === bKelimeleri.length) { 
+                                  eslesenCariId = 'BANKA_' + b.id;
+                                  islemTuruOto = b.tur === 'Kredi Karti' ? 'Kredi_Karti_Odeme' : 'Virman';
                                   break;
                               }
                           }
                       }
                   }
 
+                  // 2. ADIM: Cari Hesaplarda KATI KELİME EŞLEŞTİRME
+                  if (!eslesenCariId) {
+                      let siraliCari = [...cariListesi].sort((a,b) => b.unvan.length - a.unvan.length);
+                      // Şirket türleri, "ortak" sıfatı ve jenerik isimler asla tek başına eşleşme sağlamasın
+                      let yasakli = ['as', 'ltd', 'sti', 'sanayi', 'ticaret', 'pazarlama', 'grup', 'san', 'tic', 've', 'anonim', 'sirketi', 'insaat', 'lojistik', 'hizmetleri', 'mimarlik', 'otomotiv', 'kardesler', 'dayanikli', 'tuketim', 'mallari', 'tasimacilik', 'nakliyat', 'ortak', 'ortagi'];
+                      
+                      for(let c of siraliCari) {
+                          let cariNorm = normalizeString(c.unvan);
+                          // 3 harfli isimleri (Örn: GÜN, CAN, ALİ) silmemesi için harf filtresi "2"ye düşürüldü.
+                          let cariKelimeleri = cariNorm.split(' ').filter(w => w.length > 2 && !yasakli.includes(w));
+                          
+                          // A) Tamamı bitişik yazılsaysa bile yakala
+                          if(aciklamaNorm.includes(cariNorm) || aciklamaNorm.replace(/\s/g,'').includes(cariNorm.replace(/\s/g,''))) {
+                              eslesenCariId = c.id; 
+                              if (c.grup === 'Ortak') islemTuruOto = 'Ortak_Borc_Alacak';
+                              break;
+                          }
+                          
+                          // B) Kelime Havuzu Eşleşmesi
+                          if (cariKelimeleri.length > 0) {
+                              let eslesenKelimeSayisi = 0;
+                              for(let cw of cariKelimeleri) {
+                                  // Açıklama içinde direkt kelime olarak geçiyor mu?
+                                  if(aciklamaKelimeleri.includes(cw) || aciklamaNorm.includes(cw)) {
+                                      eslesenKelimeSayisi++;
+                                  }
+                              }
+                              
+                              // İsimdeki ayırt edici kelimelerin büyük kısmı tutuyorsa (Örn: İbrahim Arda -> 2'de 2)
+                              if(eslesenKelimeSayisi > 0 && eslesenKelimeSayisi >= Math.ceil(cariKelimeleri.length / 2)) {
+                                  eslesenCariId = c.id; 
+                                  if (c.grup === 'Ortak') islemTuruOto = 'Ortak_Borc_Alacak';
+                                  break;
+                              }
+                          }
+                      }
+                  }
                   excelOkunanHareketler.push({
                       index: index,
                       tarih: dStr,
@@ -2406,7 +2431,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
 
       // AI Uzmanlık Kimliği (System Prompt)
       const bugunTarihi = new Date().toLocaleDateString('tr-TR');
-      const systemPrompt = `Sen CPA FTC KURUMSAL KAYNAK YÖNETİMİ VE DIŞ TİCARET LTD.ŞTİ. firmasının Türkiye mali mevzuatına (VUK, KDV Kanunu, Kurumlar Vergisi), dış ticaret mevzuatına ve SGK iş kanunlarına hakim kıdemli yapay zeka Mali Müşaviri ve Finans Direktörüsün (CFO). Bugünün tarihi: ${bugunTarihi} ve yıl 2026'dır. Lütfen tüm hesaplamalarında ve mevzuat yorumlarında 2026 yılı güncel vergi dilimlerini, 2026 güncel asgari ücret tutarlarını ve güncel mevzuat tebliğlerini daima dikkate al. Kullanıcının sorusuna Türk yasalarını temel alarak profesyonel, net, anlaşılır ve dış ticarete uygun bir dille cevap ver. Gereksiz uzatma, finansal detayları maddeler halinde özetle.\n\nKullanıcının Sorusu: `;
+      const systemPrompt = `Sen CPA FTC KURUMSAL KAYNAK YÖNETİMİ VE DIŞ TİCARET LTD.ŞTİ. firmasının Türkiye mali mevzuatına (VUK, KDV Kanunu, Kurumlar Vergisi), dış ticaret mevzuatına ve SGK iş kanunlarına hakim kıdemli yapay zeka Mali Müşaviri ve Finans Direktörüsün (CFO). Bugünün tarihi: ${bugunTarihi}. Lütfen tüm hesaplamalarında ve mevzuat yorumlarında güncel Türkiye vergi dilimlerini, güncel asgari ücret tutarlarını ve güncel mevzuat tebliğlerini daima dikkate al. Kullanıcının sorusuna profesyonel, net, anlaşılır ve dış ticarete uygun bir dille cevap ver. Gereksiz uzatma, detayları maddeler halinde özetle.\n\nKullanıcının Sorusu: `;
       const gonderilecekMetin = systemPrompt + soru;
 
       try {
@@ -2416,7 +2441,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
           });
           const data = await response.json();
           if(data.error) {
-              if(data.error.code === 503) throw new Error("Google Yapay Zeka sunucuları şu an çok yoğun. Lütfen 1 dakika bekleyip tekrar deneyin.");
+              if(data.error.code === 503) throw new Error("Google Yapay Zeka sunucuları şu an yüksek yoğunluk yaşıyor. Lütfen 1 dakika bekleyip sorunuzu tekrar gönderin.");
               else throw new Error(data.error.message);
           }
 
@@ -3399,7 +3424,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                                     <li class="list-group-item px-0 py-2 border-light"><i class="fas fa-check text-success me-2"></i><strong>Kurumlar Vergisi:</strong> Genel Oran %25, İhracatçılara %20.</li>
                                     <li class="list-group-item px-0 py-2 border-light"><i class="fas fa-check text-success me-2"></i><strong>KDV Oranları:</strong> Genel %20, İndirimli %10 ve %1.</li>
                                     <li class="list-group-item px-0 py-2 border-light"><i class="fas fa-check text-success me-2"></i><strong>Hizmet İhracatı:</strong> KDV'den istisna (KDV Kanunu Md. 11).</li>
-                                    <li class="list-group-item px-0 py-2 border-light"><i class="fas fa-info-circle text-primary me-2"></i><strong>Asgari Ücret:</strong> 2026 Güncel Verilerini Dikkate Alınız.</li>
+                                    <li class="list-group-item px-0 py-2 border-light"><i class="fas fa-info-circle text-primary me-2"></i><strong>Yapay Zeka Destekli:</strong> Tüm güncel yasa, teşvik ve asgari ücret tutarlarını sorabilirsiniz.</li>
                                     <li class="list-group-item px-0 py-2 border-light"><i class="fas fa-exclamation-circle text-danger me-2"></i><strong>SGK ve Vergi:</strong> Her ayın 26'sına kadar beyan/ödeme.</li>
                                 </ul>
                                 
