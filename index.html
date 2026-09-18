@@ -1692,7 +1692,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false, sadeceEslesmeye
   };
 
   window.islemSil = async function(islemId, cariId, bankaId, tur, islemTutari) {
-      if(!confirm("Bu banka hareketini silmek istediğinize emin misiniz? Cari ve Banka bakiyeleri otomatik olarak iade edilecektir.")) return;
+      if(!confirm("Bu banka hareketini silmek istediğinize emin misiniz? İlgili hesap bakiyeleri otomatik olarak iade edilecektir.")) return;
       try {
           let tutar = Math.abs(parseFloat(islemTutari)); 
           await deleteDoc(doc(db, "hesapHareketleri", islemId));
@@ -1700,13 +1700,29 @@ window.bankaEkstreAc = async function(bankaId, reRender = false, sadeceEslesmeye
           const bankaFarki = tur === 'Tahsilat' ? -tutar : tutar;
           const cariFarki = tur === 'Tahsilat' ? tutar : -tutar;
 
-          await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(cariFarki) });
+          // SİLİNEN İŞLEM VİRMAN / KART ÖDEMESİ İSE (Karşı bankaya iade et)
+          if (cariId.startsWith('BANKA_')) {
+              let karsiBankaId = cariId.replace('BANKA_', '');
+              await updateDoc(doc(db, "bankalar", karsiBankaId), { bakiye: increment(cariFarki) });
+          } 
+          // SİLİNEN İŞLEM GERÇEK BİR CARİ İSE (Müşteri, Tedarikçi, Ortak)
+          else if (!cariId.startsWith('SISTEM_') && cariId !== 'MUHTELIF_SATICI' && cariId !== 'VERGI_DAIRESI') {
+              await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(cariFarki) });
+          }
           
+          // MEVCUT BANKA BAKİYESİNİ İADE ET
           if(bankaId !== "KUR_FARKI") {
               await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(bankaFarki) });
           }
 
-          setTimeout(() => { window.bankaEkstreAc(bankaId, true); }, 300);
+          // İşlem bittiğinde sayfadan atmadan ekstreyi yenile
+          setTimeout(() => { 
+              if(typeof window.bankaEkstreAc === 'function') {
+                  window.bankaEkstreAc(bankaId, true); 
+              } else {
+                  document.getElementById('main-content').innerHTML = '<div class="alert alert-success mt-4">İşlem başarıyla silindi ve bakiyeler güncellendi. Lütfen Bankalar menüsüne dönün.</div>';
+              }
+          }, 300);
       } catch(e) { alert("Hata: " + e.message); }
   };
 
