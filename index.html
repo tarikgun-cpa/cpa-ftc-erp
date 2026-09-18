@@ -869,8 +869,8 @@
           let html = `<tr>
                   <td>${fatura.faturaNo}</td><td>${fatura.tarih}</td><td><span class="text-truncate d-inline-block" style="max-width: 150px;">${fatura.cariUnvan}</span></td>
                   <td>${aciklamaT}</td>
-                  <td>${fatura.tutar.toFixed(2)} ${sembol}</td><td>${fatura.kdvTutar.toFixed(2)} ${sembol}</td>
-                  <td class="fw-bold text-dark text-end">${fatura.toplamTutar.toFixed(2)} ${sembol}</td><td>${islemButonlari}</td></tr>`;
+                  <td>${fatura.tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${sembol}</td><td>${fatura.kdvTutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${sembol}</td>
+                  <td class="fw-bold text-dark text-end">${fatura.toplamTutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${sembol}</td><td>${islemButonlari}</td></tr>`;
 
           if(fatura.tur === 'Ihracat' || fatura.tur === 'Satis') iTbody.innerHTML += html; 
           else if(fatura.tur === 'YerelSatis') yTbody.innerHTML += html; 
@@ -1429,14 +1429,12 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
       let basTarih = reRender && document.getElementById('ex_banka_bas') ? document.getElementById('ex_banka_bas').value : '';
       let bitTarih = reRender && document.getElementById('ex_banka_bit') ? document.getElementById('ex_banka_bit').value : '';
 
-      // İşlemleri alıp tarihe göre (eskiden yeniye) sıralıyoruz ki yürüyen bakiye doğru hesaplansın
       let tamHareketler = islemListesi.filter(i => i.bankaId === bankaId).map(i => {
           let dStr = i.tarih ? new Date(i.tarih.seconds * 1000).toISOString().split('T')[0] : '';
           return { ...i, tarihStr: dStr, hamTarih: new Date(dStr).getTime() };
       });
       tamHareketler.sort((a,b) => a.hamTarih - b.hamTarih); 
       
-      // --- OTOMATİK BANKA BAKİYESİ HESAPLAMA VE DÜZELTME ---
       if(!reRender) {
           let hesaplananBankaBakiye = 0;
           tamHareketler.forEach(h => { hesaplananBankaBakiye += (h.tur === 'Tahsilat' ? h.tutar : -h.tutar); });
@@ -1448,7 +1446,6 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
               banka.bakiye = hesaplananBankaBakiye;
           }
       }
-      // -----------------------------------------------------
 
       let html = `<div id="yazdirilacak-alan" class="p-4 bg-white shadow-sm rounded border border-light">
           <div class="d-flex justify-content-between align-items-end mb-4 border-bottom pb-3">
@@ -1460,7 +1457,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                       ${banka.tur === 'Banka' ? '<br><small class="text-muted d-block mt-1" style="font-size:11px;"><strong>IBAN:</strong> ' + (banka.iban || '-') + ' | <strong>Yerel Hesap:</strong> ' + (banka.yerelHesap || '-') + '</small>' : ''}
                   </div>
               </div>
-              <div class="text-end"><h6 class="mb-0 text-muted small">Güncel Kapanış Bakiyesi</h6><h4 class="${banka.bakiye >= 0 ? 'text-success' : 'text-danger'} fw-bold mb-0">${banka.bakiye.toFixed(2)} ${birim}</h4></div>
+              <div class="text-end"><h6 class="mb-0 text-muted small">Güncel Kapanış Bakiyesi</h6><h4 class="${banka.bakiye >= 0 ? 'text-success' : 'text-danger'} fw-bold mb-0">${banka.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${birim}</h4></div>
           </div>
           
           <div class="row mb-3 d-print-none bg-light p-2 rounded mx-0">
@@ -1471,7 +1468,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
 
           <div class="table-responsive">
           <table class="table table-sm table-hover align-middle">
-              <thead class="table-light text-muted small border-bottom border-dark border-2"><tr><th>Tarih</th><th>İşlem Yönü</th><th>Cari Unvan (Kime/Kimden)</th><th>Açıklama</th><th class="text-end">Giriş (+)</th><th class="text-end">Çıkış (-)</th><th class="text-end">Bakiye</th><th class="d-print-none text-center">İptal</th></tr></thead>
+              <thead class="table-light text-muted small border-bottom border-dark border-2"><tr><th>Tarih</th><th>İşlem Yönü</th><th>Cari Unvan (Kime/Kimden)</th><th>Açıklama</th><th class="text-end">Giriş (+)</th><th class="text-end">Çıkış (-)</th><th class="text-end">Bakiye</th><th class="d-print-none text-center">Aksiyon</th></tr></thead>
               <tbody>`;
               
       if(tamHareketler.length === 0) { 
@@ -1481,37 +1478,159 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
           let filtrelenenKayitSayisi = 0;
 
           tamHareketler.forEach(h => {
-              // Yürüyen bakiyeyi daima hesapla (Tarih filtresinden önce hesaplanmalı ki devir doğru olsun)
               let islemTutari = h.tur === 'Tahsilat' ? h.tutar : -h.tutar;
               yuruyenBakiye += islemTutari; 
 
-              // Filtreye uymuyorsa ekrana basma ama bakiyeye dahil et
               if(basTarih && h.tarihStr < basTarih) return;
               if(bitTarih && h.tarihStr > bitTarih) return;
 
               filtrelenenKayitSayisi++;
               let d = h.tarih ? new Date(h.tarih.seconds * 1000).toLocaleDateString('tr-TR') : '-';
-              let cariAdi = h.cariId === "VERGI_DAIRESI" ? "Vergi / Yasal Kurum" : (h.cariId === "SISTEM_DEVIR" ? "Açılış Bakiyesi / Devir" : (cariListesi.find(c => c.id === h.cariId)?.unvan || 'Silinmiş Cari'));
+              
+              let cariAdi = h.cariId === "VERGI_DAIRESI" ? "Vergi / Yasal Kurum" 
+                          : (h.cariId === "SISTEM_DEVIR" ? "Açılış Bakiyesi / Devir" 
+                          : (h.cariId === "SISTEM_ESLESMEYEN" ? `<span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle"></i> Eşleştirme Bekliyor</span>`
+                          : (cariListesi.find(c => c.id === h.cariId)?.unvan || 'Diğer Sistem İşlemi')));
+              
               let girisStr = '-'; let cikisStr = '-';
+              if(h.tur === 'Tahsilat') { girisStr = `${h.tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${birim}`; toplamGiris += h.tutar; }
+              else if(h.tur === 'Odeme') { cikisStr = `${h.tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${birim}`; toplamCikis += h.tutar; }
               
-              if(h.tur === 'Tahsilat') { girisStr = `${h.tutar.toFixed(2)} ${birim}`; toplamGiris += h.tutar; }
-              else if(h.tur === 'Odeme') { cikisStr = `${h.tutar.toFixed(2)} ${birim}`; toplamCikis += h.tutar; }
+              let aksiyonButonlari = `
+                  <button class="btn btn-sm btn-outline-primary py-0 me-1" onclick="islemDuzenleAc('${h.id}')" title="İşlemi Değiştir / Eşleştir"><i class="fas fa-edit"></i></button>
+                  <button class="btn btn-sm btn-outline-danger py-0" onclick="islemSil('${h.id}', '${h.cariId}', '${h.bankaId}', '${h.tur}', ${h.tutar})" title="İşlemi İptal Et"><i class="fas fa-trash"></i></button>
+              `;
               
-              let silButon = `<button class="btn btn-sm btn-outline-danger py-0" onclick="islemSil('${h.id}', '${h.cariId}', '${h.bankaId}', '${h.tur}', ${h.tutar})" title="İşlemi İptal Et"><i class="fas fa-trash"></i></button>`;
-              
-              html += `<tr><td class="small">${d}</td><td class="small text-muted">${h.tur}</td><td class="small">${cariAdi}</td><td class="small">${h.aciklama}</td><td class="text-end fw-medium text-success">${girisStr}</td><td class="text-end fw-medium text-danger">${cikisStr}</td><td class="text-end fw-bold text-primary">${yuruyenBakiye.toFixed(2)} ${birim}</td><td class="d-print-none text-center">${silButon}</td></tr>`;
+              html += `<tr><td class="small">${d}</td><td class="small text-muted">${h.tur}</td><td class="small">${cariAdi}</td><td class="small">${h.aciklama}</td><td class="text-end fw-medium text-success">${girisStr}</td><td class="text-end fw-medium text-danger">${cikisStr}</td><td class="text-end fw-bold text-primary">${yuruyenBakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${birim}</td><td class="d-print-none text-center">${aksiyonButonlari}</td></tr>`;
           });
 
           if(filtrelenenKayitSayisi === 0) {
               html += `<tr><td colspan="8" class="text-center text-muted py-3">Bu tarih aralığında işlem bulunamadı.</td></tr>`;
           } else {
-              html += `<tr class="table-light border-top border-dark border-2"><td colspan="4" class="text-end fw-bold small text-muted">FİLTRELENEN DÖNEM TOPLAMI:</td><td class="text-end fw-bold text-success">${toplamGiris.toFixed(2)} ${birim}</td><td class="text-end fw-bold text-danger">${toplamCikis.toFixed(2)} ${birim}</td><td colspan="2"></td></tr>`;
+              html += `<tr class="table-light border-top border-dark border-2"><td colspan="4" class="text-end fw-bold small text-muted">FİLTRELENEN DÖNEM TOPLAMI:</td><td class="text-end fw-bold text-success">${toplamGiris.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${birim}</td><td class="text-end fw-bold text-danger">${toplamCikis.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${birim}</td><td colspan="2"></td></tr>`;
           }
       }
 
       html += `</tbody></table></div></div>`;
       html += `<div class="mt-3"><button class="btn btn-secondary shadow-sm" onclick="window.print()"><i class="fas fa-print"></i> Yazdır</button> <button class="btn btn-outline-danger ms-2" onclick="sayfaYukle('bankalar')">Kapat</button></div>`;
       document.getElementById('main-content').innerHTML = html;
+  };
+
+  // YENİ: İŞLEM DÜZENLEME (EŞLEŞTİRME DEĞİŞTİRME) FONKSİYONLARI
+  window.islemDuzenleAc = function(id) {
+      const islem = islemListesi.find(i => i.id === id);
+      if(!islem) return;
+      
+      if (islem.cariId === 'SISTEM_VIRMAN' || islem.aciklama.includes('(İşlem Yapan)') || islem.aciklama.includes('(Karşı Hesap)')) {
+          alert("Virman ve Kredi Kartı transfer işlemleri doğası gereği çifttir. Lütfen işlemi doğrudan Çöp Kutusu ikonundan silip, Ana Ekrandan tekrar ekleyin.");
+          return;
+      }
+
+      document.getElementById('hd_islemId').value = id;
+      document.getElementById('hd_bankaId').value = islem.bankaId;
+      document.getElementById('hd_eskiCari').value = islem.cariId;
+      document.getElementById('hd_eskiTur').value = islem.tur;
+      document.getElementById('hd_tutar').value = islem.tutar;
+      
+      document.getElementById('hd_tur').value = islem.tur;
+      
+      // Dinamik listeyi bankaya göre doldur
+      window.hdTuruDegisti();
+      
+      // Varsa eski carisini seç
+      document.getElementById('hd_cariId').value = islem.cariId;
+      
+      new bootstrap.Modal(document.getElementById('islemDuzenleModal')).show();
+  };
+
+  window.hdTuruDegisti = function() {
+      const tur = document.getElementById('hd_tur').value;
+      const bankaId = document.getElementById('hd_bankaId').value;
+      const select = document.getElementById('hd_cariId');
+      
+      if(tur === 'Virman' || tur === 'Kredi_Karti_Odeme') {
+          select.innerHTML = '<option value="">-- Karşı Banka / Kasa Seçiniz --</option>';
+          bankaListesi.forEach(b => { 
+              if(b.id !== bankaId) select.innerHTML += `<option value="BANKA_${b.id}">${b.hesapAdi} (${b.paraBirimi})</option>`; 
+          });
+      } else {
+          select.innerHTML = '<option value="">-- Lütfen Eşleştirme Seçiniz --</option>';
+          select.innerHTML += '<option value="SISTEM_ESLESMEYEN" class="text-warning fw-bold">⚠️ EŞLEŞTİRME BEKLİYOR</option>';
+          select.innerHTML += '<option value="MUHTELIF_SATICI" class="text-primary fw-bold">-- FİŞ / CARİSİZ GİDER --</option>';
+          select.innerHTML += '<option value="SISTEM_VERGI">-- Vergi / SGK Ödemesi --</option>';
+          select.innerHTML += '<option value="SISTEM_MAAS">-- Personel Maaşı --</option>';
+          select.innerHTML += '<option value="SISTEM_BANKA">-- Banka Masrafı/Faiz Gideri --</option>';
+          select.innerHTML += '<option value="SISTEM_FAIZ">-- Faiz Geliri --</option>';
+          select.innerHTML += '<option value="SISTEM_DOVIZ">-- Döviz Alım / Satım --</option>';
+          select.innerHTML += '<optgroup label="Cari Hesaplar (Müşteri, Tedarikçi, Ortak)">';
+          cariListesi.forEach(c => { select.innerHTML += `<option value="${c.id}">${c.unvan}</option>`; });
+          select.innerHTML += '</optgroup>';
+      }
+  };
+
+  window.islemDuzenleKaydet = async function() {
+      const islemId = document.getElementById('hd_islemId').value;
+      const bankaId = document.getElementById('hd_bankaId').value;
+      const eskiCariId = document.getElementById('hd_eskiCari').value;
+      const eskiTur = document.getElementById('hd_eskiTur').value;
+      const tutar = parseFloat(document.getElementById('hd_tutar').value);
+      
+      const yeniTur = document.getElementById('hd_tur').value;
+      const yeniCariId = document.getElementById('hd_cariId').value;
+
+      if(!yeniCariId) { alert("Lütfen bir eşleştirme seçin!"); return; }
+      if(eskiCariId === yeniCariId && eskiTur === yeniTur) {
+          bootstrap.Modal.getInstance(document.getElementById('islemDuzenleModal')).hide();
+          return;
+      }
+
+      const btn = document.getElementById('btn_duzenle_kaydet');
+      btn.disabled = true; btn.innerHTML = 'İşleniyor...';
+
+      try {
+          // 1. ESKİ CARİ BAKİYESİNİ GERİ AL (Gerçek cari ise)
+          let isOldSistem = eskiCariId.startsWith('SISTEM_') || eskiCariId === 'MUHTELIF_SATICI' || eskiCariId === 'VERGI_DAIRESI';
+          if(!isOldSistem) {
+              const eskiCariIade = eskiTur === 'Tahsilat' ? tutar : -tutar; // Tahsilat düştü, şimdi geri ekliyoruz
+              await updateDoc(doc(db, "cariler", eskiCariId), { bakiye: increment(eskiCariIade) });
+          }
+
+          // 2. YENİ CARİYE VEYA BANKAYA UYGULA
+          let isNewVirman = yeniCariId.startsWith('BANKA_');
+          if (isNewVirman) {
+              let karsiBankaId = yeniCariId.replace('BANKA_', '');
+              const islem = islemListesi.find(i => i.id === islemId);
+              
+              await updateDoc(doc(db, "hesapHareketleri", islemId), {
+                  cariId: 'SISTEM_VIRMAN', tur: islem.tur, aciklama: islem.aciklama + ' (Eşleştirildi)'
+              });
+              
+              await addDoc(collection(db, "hesapHareketleri"), {
+                  bankaId: karsiBankaId, cariId: 'SISTEM_VIRMAN', 
+                  tur: islem.tur === 'Tahsilat' ? 'Odeme' : 'Tahsilat', 
+                  tutar: tutar, aciklama: islem.aciklama + ' (Karşı Hesap)', tarih: islem.tarih
+              });
+              
+              let karsiFark = islem.tur === 'Tahsilat' ? -tutar : tutar;
+              await updateDoc(doc(db, "bankalar", karsiBankaId), { bakiye: increment(karsiFark) });
+          } else {
+              await updateDoc(doc(db, "hesapHareketleri", islemId), {
+                  cariId: yeniCariId, tur: yeniTur
+              });
+              
+              let isNewSistem = yeniCariId.startsWith('SISTEM_') || yeniCariId === 'MUHTELIF_SATICI' || yeniCariId === 'VERGI_DAIRESI';
+              if(!isNewSistem) {
+                  const yeniCariEtki = yeniTur === 'Tahsilat' ? -tutar : tutar;
+                  await updateDoc(doc(db, "cariler", yeniCariId), { bakiye: increment(yeniCariEtki) });
+              }
+          }
+
+          bootstrap.Modal.getInstance(document.getElementById('islemDuzenleModal')).hide();
+      } catch(e) {
+          alert("Hata: " + e.message);
+      } finally {
+          btn.disabled = false; btn.innerHTML = 'Eşleştirmeyi Kaydet';
+      }
   };
 
   window.bankaSil = async function(id) {
@@ -1846,7 +1965,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                       }
                   }
 
-                  // 3. ADIM: SİSTEMSEL JENERİK KONTROLLER
+                  // 3. ADIM: SİSTEMSEL JENERİK KONTROLLER VE BEKLEYENLER
                   if (!eslesenCariId) {
                       if(aciklamaNorm.includes('vergi') || aciklamaNorm.includes('sgk') || aciklamaNorm.includes('muhtasar')) { 
                           islemTuruOto = 'Vergi_SGK'; eslesenCariId = 'SISTEM_VERGI'; 
@@ -1872,6 +1991,9 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                       }
                       else if(aciklamaNorm.includes('virman')) { 
                           islemTuruOto = 'Virman'; 
+                      } 
+                      else {
+                          eslesenCariId = 'SISTEM_ESLESMEYEN'; // Hiçbiri değilse "Eşleştirme Bekliyor" olarak kaydeder.
                       }
                   }
 
@@ -2005,7 +2127,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
           }
       }
 
-      alert(`Toplu İşlem Tamamlandı!\n${islenenSayi} hareket başarıyla sisteme aktarıldı.\n${atlananSayi} hareket (Hesap seçilmediği için) atlandı.`);
+      alert(`Toplu İşlem Tamamlandı!\n${islenenSayi} hareket başarıyla sisteme aktarıldı.\nSarı Uyarı İkonlu hareketler (Taslak) olarak işlenmiş olup Banka Ekstreniz üzerinden Değiştir butonuna basarak doğru Cariye eşleştirebilirsiniz.`);
       btn.innerHTML = '<i class="fas fa-save me-1"></i> Eşleşenleri Sisteme Kaydet'; btn.disabled = false;
   };
 
@@ -2085,11 +2207,11 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
               let uyariClass = farkGun <= 5 ? 'text-danger fw-bold' : '';
               let uyariIkon = farkGun <= 5 ? '<i class="fas fa-exclamation-triangle text-danger me-1" title="Yaklaşan Ödeme!"></i>' : '';
 
-              bTbody.innerHTML += `<tr><td><span class="fw-bold">${vergi.tur}</span></td><td>${vergi.donem}</td><td class="${uyariClass}">${uyariIkon}${vergi.sonTarih}</td><td class="fw-bold">${vergi.tutar.toFixed(2)} €</td><td><span class="badge bg-danger">Bekliyor</span></td>
+              bTbody.innerHTML += `<tr><td><span class="fw-bold">${vergi.tur}</span></td><td>${vergi.donem}</td><td class="${uyariClass}">${uyariIkon}${vergi.sonTarih}</td><td class="fw-bold">${vergi.tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ₺</td><td><span class="badge bg-danger">Bekliyor</span></td>
               <td><button class="btn btn-sm btn-success py-0 me-1" onclick="vergiOdeAc('${vergi.id}')"><i class="fas fa-check"></i> Öde</button><button class="btn btn-sm btn-outline-primary py-0 me-1" onclick="vergiDuzenleAc('${vergi.id}')"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline-danger py-0" onclick="vergiSil('${vergi.id}')"><i class="fas fa-trash"></i></button></td></tr>`;
           } else {
               let bnk = bankaListesi.find(b => b.id === vergi.odenenBankaId)?.hesapAdi || 'Belirsiz Kasa';
-              oTbody.innerHTML += `<tr><td><span class="fw-bold">${vergi.tur}</span></td><td>${vergi.donem}</td><td>${vergi.sonTarih}</td><td class="fw-bold text-success">${vergi.tutar.toFixed(2)} €</td><td><span class="badge bg-success">Ödendi</span><br><small class="text-muted">${bnk}</small></td>
+              oTbody.innerHTML += `<tr><td><span class="fw-bold">${vergi.tur}</span></td><td>${vergi.donem}</td><td>${vergi.sonTarih}</td><td class="fw-bold text-success">${vergi.tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ₺</td><td><span class="badge bg-success">Ödendi</span><br><small class="text-muted">${bnk}</small></td>
               <td><button class="btn btn-sm btn-outline-danger py-0" onclick="vergiSil('${vergi.id}', true)"><i class="fas fa-trash"></i></button></td></tr>`;
           }
       });
@@ -3109,6 +3231,52 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
                                 <button type="button" class="btn btn-info text-white" onclick="kurFarkiKaydet()">Kaydet</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- İŞLEM DEĞİŞTİR (EŞLEŞTİRME) MODALI -->
+                <div class="modal fade" id="islemDuzenleModal" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content border-0 shadow-lg">
+                            <div class="modal-header bg-primary text-white">
+                                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>İşlemi Eşleştir / Düzenle</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body p-4 bg-light">
+                                <input type="hidden" id="hd_islemId">
+                                <input type="hidden" id="hd_bankaId">
+                                <input type="hidden" id="hd_eskiCari">
+                                <input type="hidden" id="hd_eskiTur">
+                                <input type="hidden" id="hd_tutar">
+
+                                <div class="mb-3">
+                                    <label class="form-label text-muted small fw-bold">İşlem Yönü / Türü</label>
+                                    <select class="form-select shadow-sm" id="hd_tur" onchange="window.hdTuruDegisti()">
+                                        <option value="Tahsilat">Müşteriden Tahsilat (Giriş)</option>
+                                        <option value="Odeme">Tedarikçiye Ödeme (Çıkış)</option>
+                                        <option value="Kredi_Karti_Odeme">Kredi Kartı Borç Ödemesi</option>
+                                        <option value="Virman">Banka/Kasa Virman Veya Kart Ödemesi</option>
+                                        <option value="Doviz_Alim_Satis">Döviz İşlemi</option>
+                                        <option value="Maas">Maaş Ödemesi</option>
+                                        <option value="Vergi_SGK">Vergi / SGK</option>
+                                        <option value="Ortak_Borc_Alacak">Ortak İşlemi</option>
+                                        <option value="Faiz_Gelir">Faiz Geliri</option>
+                                        <option value="Banka_Gider">Banka Masrafı</option>
+                                    </select>
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label text-muted small fw-bold">Doğru Eşleştirme (Cari Hesap)</label>
+                                    <select class="form-select shadow-sm border-primary" id="hd_cariId"></select>
+                                </div>
+                                <div class="alert alert-info small py-2 mb-0">
+                                    <i class="fas fa-info-circle"></i> Eşleştirmeyi kaydettiğinizde önceki hatalı cari bakiyesi silinerek bakiye yeni cari hesaba geçirilecektir.
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                                <button type="button" class="btn btn-primary fw-bold" id="btn_duzenle_kaydet" onclick="window.islemDuzenleKaydet()">Eşleştirmeyi Kaydet</button>
                             </div>
                         </div>
                     </div>
