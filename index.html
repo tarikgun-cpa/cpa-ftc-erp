@@ -618,8 +618,10 @@
         let analizHtml = '';
         if(cari.grup === 'Alici') {
             analizHtml = `<span>Hasılat (Ciro): <strong class="text-success">${cariSatis.toLocaleString('en-US', {minimumFractionDigits: 2})} ${sembol}</strong></span>`;
-        } else {
+        } else if(cari.grup === 'Satici') {
             analizHtml = `<span>Maliyet (Gider): <strong class="text-danger">${cariAlim.toLocaleString('en-US', {minimumFractionDigits: 2})} ${sembol}</strong></span>`;
+        } else {
+            analizHtml = `<span>Ortak İşlemleri: <strong class="text-info">${(cariSatis+cariAlim).toLocaleString('en-US', {minimumFractionDigits: 2})} ${sembol}</strong></span>`;
         }
 
         let formatliUnvan = cari.unvan.length > 25 ? cari.unvan.substring(0,25) + '...' : cari.unvan;
@@ -1572,18 +1574,39 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
       finally { btn.disabled = false; btn.innerHTML = "Kaydet"; }
   };
 
+  window.islemTuruDegisti = function() {
+      const tur = document.getElementById('i_tur').value;
+      const select = document.getElementById('i_cariId');
+      const label = document.getElementById('i_cari_etiket');
+      if(!label) return;
+      
+      if(tur === 'Virman' || tur === 'Kredi_Karti_Odeme') {
+          label.innerHTML = "Karşı Banka / Kasa / Kart *";
+          select.innerHTML = '<option value="">-- Hesap Seçiniz --</option>';
+          const aktifBankaId = document.getElementById('i_bankaId').value;
+          bankaListesi.forEach(b => { 
+              if(b.id !== aktifBankaId) {
+                  select.innerHTML += `<option value="${b.id}">${b.hesapAdi} (${b.paraBirimi})</option>`; 
+              }
+          });
+      } else {
+          label.innerHTML = "İlgili Cari / Karşı Hesap (Kime/Kimden) *";
+          select.innerHTML = '<option value="">-- Cari Seçiniz --</option>';
+          select.innerHTML += '<option value="SISTEM_DEVIR" class="fw-bold text-primary">-- AÇILIŞ BAKİYESİ (DEVİR) --</option>';
+          select.innerHTML += '<option value="MUHTELIF_SATICI" class="fw-bold text-primary">-- CARİSİZ İŞLEM (MASRAF/FİŞ) --</option>';
+          cariListesi.forEach(c => { 
+              let paraBrm = c.paraBirimi === 'USD' ? '$' : (c.paraBirimi === 'EUR' ? '€' : '₺');
+              select.innerHTML += `<option value="${c.id}">${c.unvan} (Bakiye: ${c.bakiye} ${paraBrm})</option>`; 
+          });
+      }
+  };
+
   window.islemModalAc = function(tur, bankaId) {
       document.getElementById('i_tur').value = tur;
       document.getElementById('i_bankaId').value = bankaId;
       document.getElementById('islemModalBaslik').innerHTML = tur === 'Tahsilat' ? 'Tahsilat Al (Giriş)' : 'Ödeme Yap (Çıkış)';
       
-      const select = document.getElementById('i_cariId');
-      select.innerHTML = '<option value="">-- Cari Seçiniz --</option>';
-      select.innerHTML += '<option value="SISTEM_DEVIR" class="fw-bold text-primary">-- KASA / BANKA AÇILIŞ BAKİYESİ (DEVİR) --</option>';
-      cariListesi.forEach(c => { 
-          let paraBrm = c.paraBirimi === 'USD' ? '$' : (c.paraBirimi === 'EUR' ? '€' : '₺');
-          select.innerHTML += `<option value="${c.id}">${c.unvan} (Bakiye: ${c.bakiye} ${paraBrm})</option>`; 
-      });
+      if(typeof window.islemTuruDegisti === 'function') window.islemTuruDegisti();
       document.getElementById('i_tarih').value = new Date().toISOString().split('T')[0];
       new bootstrap.Modal(document.getElementById('islemModal')).show();
   };
@@ -1593,27 +1616,43 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
       const bankaId = document.getElementById('i_bankaId').value;
       const cariId = document.getElementById('i_cariId').value;
       const tutar = parseFloat(document.getElementById('i_tutar').value) || 0;
-      const aciklama = document.getElementById('i_aciklama').value || (cariId === 'SISTEM_DEVIR' ? 'Hesap Açılış Bakiyesi (Devir)' : '');
+      
+      let isVirman = (tur === 'Virman' || tur === 'Kredi_Karti_Odeme');
+      const aciklama = document.getElementById('i_aciklama').value || (isVirman ? 'Virman / Kart Ödemesi' : (cariId === 'SISTEM_DEVIR' ? 'Hesap Açılış Bakiyesi (Devir)' : 'Banka İşlemi'));
 
-      if(!cariId || tutar <= 0) { alert("Lütfen cari veya işlem türü seçip geçerli bir tutar girin."); return; }
+      if(!cariId || tutar <= 0) { alert("Lütfen cari/hesap seçip geçerli bir tutar girin."); return; }
 
       const btn = document.querySelector("#islemModal .btn-primary");
       btn.disabled = true; btn.innerHTML = "İşleniyor...";
 
       try {
-          await addDoc(collection(db, "hesapHareketleri"), {
-              bankaId: bankaId, cariId: cariId, tur: tur, tutar: tutar, aciklama: aciklama,
-              tarih: new Date(document.getElementById('i_tarih').value)
-          });
+          if(isVirman) {
+              let bankaFarki = tur === 'Tahsilat' ? tutar : -tutar;
+              let karsiFark = tur === 'Tahsilat' ? -tutar : tutar;
+              
+              await addDoc(collection(db, "hesapHareketleri"), {
+                  bankaId: bankaId, cariId: 'SISTEM_VIRMAN', tur: tur, tutar: tutar, aciklama: aciklama + ' (Giren)', tarih: new Date(document.getElementById('i_tarih').value)
+              });
+              await addDoc(collection(db, "hesapHareketleri"), {
+                  bankaId: cariId, cariId: 'SISTEM_VIRMAN', tur: tur === 'Tahsilat' ? 'Odeme' : 'Tahsilat', tutar: tutar, aciklama: aciklama + ' (Çıkan)', tarih: new Date(document.getElementById('i_tarih').value)
+              });
+              
+              await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(bankaFarki) });
+              await updateDoc(doc(db, "bankalar", cariId), { bakiye: increment(karsiFark) });
+          } else {
+              await addDoc(collection(db, "hesapHareketleri"), {
+                  bankaId: bankaId, cariId: cariId, tur: tur, tutar: tutar, aciklama: aciklama,
+                  tarih: new Date(document.getElementById('i_tarih').value)
+              });
 
-          const bakiyeDegisimi = tur === 'Tahsilat' ? tutar : -tutar;
-          await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(bakiyeDegisimi) });
+              const bakiyeDegisimi = tur === 'Tahsilat' ? tutar : -tutar;
+              await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(bakiyeDegisimi) });
 
-          if (cariId !== "SISTEM_DEVIR" && cariId !== "VERGI_DAIRESI") {
-              const cariBakiyeDegisimi = tur === 'Tahsilat' ? -tutar : tutar;
-              await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(cariBakiyeDegisimi) });
+              if (cariId !== "SISTEM_DEVIR" && cariId !== "VERGI_DAIRESI" && cariId !== "MUHTELIF_SATICI") {
+                  const cariBakiyeDegisimi = tur === 'Tahsilat' ? -tutar : tutar;
+                  await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(cariBakiyeDegisimi) });
+              }
           }
-
           bootstrap.Modal.getInstance(document.getElementById('islemModal')).hide();
           document.getElementById('islemForm').reset();
       } catch(e) { alert("Hata: " + e.message); } 
@@ -1719,6 +1758,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                   };
 
                   let aciklamaNorm = normalizeString(aciklama);
+                  let aciklamaKelimeleri = aciklamaNorm.split(' ');
                   let tipNorm = normalizeString(hareketTipi);
 
                   // 1. ADIM: Gelişmiş Kelime Avcısı
@@ -1730,24 +1770,23 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                   else if((aciklamaNorm.includes('masraf') || aciklamaNorm.includes('komisyon') || aciklamaNorm.includes('eft ucreti') || aciklamaNorm.includes('faiz')) && anaYon === 'Odeme') { eslesenCariId = 'SISTEM_BANKA'; islemTuruOto = 'Banka_Gider'; }
                   else if(aciklamaNorm.includes('ortaga borc') || aciklamaNorm.includes('sermaye avansi') || aciklamaNorm.includes('ortaktan')) { eslesenCariId = 'SISTEM_ORTAK'; islemTuruOto = 'Ortak_Borc_Alacak'; }
                   else {
-                      // 2. ADIM: Normalize Edilmiş Cari İsimlerinden Yakalama Algoritması
+                      // 2. ADIM: TAM Kelime Eşleşmesi (Hecelerin karışmasını önler)
                       let siraliCari = [...cariListesi].sort((a,b) => b.unvan.length - a.unvan.length);
                       let yasakliKelimeler = ['as', 'ltd', 'sti', 'sanayi', 'ticaret', 'pazarlama', 'grup', 'san', 'tic', 've'];
                       
                       for(let c of siraliCari) {
                           let cariNorm = normalizeString(c.unvan);
+                          let cariKelimeleri = cariNorm.split(' ').filter(w => w.length > 2 && !yasakliKelimeler.includes(w));
                           
-                          if(aciklamaNorm.includes(cariNorm)) {
-                              eslesenCariId = c.id; break;
+                          let eslesti = false;
+                          for(let cw of cariKelimeleri) {
+                              if(aciklamaKelimeleri.includes(cw)) { eslesti = true; break; }
                           }
                           
-                          let words = cariNorm.split(' ').filter(w => w.length > 3 && !yasakliKelimeler.includes(w));
-                          for(let w of words) {
-                              if(aciklamaNorm.includes(w)) {
-                                  eslesenCariId = c.id; break;
-                              }
+                          if(eslesti || aciklamaNorm.includes(cariNorm.replace(/\s/g, ''))) {
+                              eslesenCariId = c.id;
+                              break;
                           }
-                          if(eslesenCariId) break;
                       }
                   }
 
@@ -2460,9 +2499,10 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                     <div class="col-md-4">
                         <label class="form-label text-muted small fw-bold">Cari Türü</label>
                         <select id="cariGrupFiltre" class="form-select" onchange="tabloyuCiz()">
-                            <option value="Hepsi">Tümü (Müşteri ve Tedarikçiler)</option>
+                            <option value="Hepsi">Tümü (Müşteri, Tedarikçi, Ortak)</option>
                             <option value="Alici">Sadece Müşteriler (Alıcı)</option>
                             <option value="Satici">Sadece Tedarikçiler (Satıcı)</option>
+                            <option value="Ortak">Sadece Ortaklar (Ortak)</option>
                         </select>
                     </div>
                     <div class="col-md-4">
@@ -2499,7 +2539,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                                         </select>
                                     </div>
                                     <div class="row mb-3">
-                                        <div class="col-md-6"><label class="form-label">Cari Grubu *</label><select class="form-select" id="c_grup"><option value="Alici">Alıcı</option><option value="Satici">Satıcı</option></select></div>
+                                        <div class="col-md-6"><label class="form-label">Cari Grubu *</label><select class="form-select" id="c_grup"><option value="Alici">Alıcı (Müşteri)</option><option value="Satici">Satıcı (Tedarikçi)</option><option value="Ortak">Şirket Ortağı</option></select></div>
                                         <div class="col-md-6"><label class="form-label">Bölge *</label><select class="form-select" id="c_bolge"><option value="Yerli">Yurtiçi (Türkiye)</option><option value="Yabanci">Yurtdışı (İhracat / İthalat)</option></select></div>
                                     </div>
                                     <div class="row mb-3">
@@ -2826,7 +2866,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                                     
                                     <div class="mb-3">
                                         <label class="form-label">İşlem Türü *</label>
-                                        <select class="form-select border-primary" id="i_tur" required>
+                                        <select class="form-select border-primary" id="i_tur" onchange="if(typeof window.islemTuruDegisti === 'function') window.islemTuruDegisti()" required>
                                             <option value="Tahsilat">Müşteriden Tahsilat (Giriş)</option>
                                             <option value="Odeme">Tedarikçiye Ödeme (Çıkış)</option>
                                             <option value="Kredi_Karti_Odeme">Kredi Kartı Borç Ödemesi</option>
@@ -2839,11 +2879,12 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                                             <option value="Banka_Gider">Banka Masrafı / Komisyon / Faiz Gideri</option>
                                         </select>
                                     </div>
-
-                                    <div class="mb-3">
-                                        <label class="form-label">İlgili Cari / Karşı Hesap (Kime/Kimden) *</label>
+                                <div class="mb-3">
+                                        <label class="form-label" id="i_cari_etiket">İlgili Cari / Karşı Hesap (Kime/Kimden) *</label>
                                         <select class="form-select" id="i_cariId" required></select>
                                     </div>
+
+                                    
                                     <div class="row mb-3">
                                         <div class="col-md-6">
                                             <label class="form-label">İşlem Tarihi *</label>
@@ -3252,7 +3293,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                                     <li class="list-group-item px-0 py-2 border-light"><i class="fas fa-check text-success me-2"></i><strong>Kurumlar Vergisi:</strong> Genel Oran %25, İhracatçılara %20.</li>
                                     <li class="list-group-item px-0 py-2 border-light"><i class="fas fa-check text-success me-2"></i><strong>KDV Oranları:</strong> Genel %20, İndirimli %10 ve %1.</li>
                                     <li class="list-group-item px-0 py-2 border-light"><i class="fas fa-check text-success me-2"></i><strong>Hizmet İhracatı:</strong> KDV'den istisna (KDV Kanunu Md. 11).</li>
-                                    <li class="list-group-item px-0 py-2 border-light"><i class="fas fa-info-circle text-primary me-2"></i><strong>Asgari Ücret:</strong> 2024 Net 17.002 ₺.</li>
+                                    <li class="list-group-item px-0 py-2 border-light"><i class="fas fa-info-circle text-primary me-2"></i><strong>Asgari Ücret:</strong> 2026 Güncel Verilerini Dikkate Alınız.</li>
                                     <li class="list-group-item px-0 py-2 border-light"><i class="fas fa-exclamation-circle text-danger me-2"></i><strong>SGK ve Vergi:</strong> Her ayın 26'sına kadar beyan/ödeme.</li>
                                 </ul>
                                 
