@@ -832,7 +832,7 @@
       if (pTbody) {
           pTbody.innerHTML = "";
           proformaListesi.forEach(p => {
-              let sembol = p.paraBirimi === 'USD' ? '$' : '€';
+              let sembol = p.paraBirimi === 'USD' ? '$' : (p.paraBirimi === 'TRY' ? '₺' : '€');
               let islemButonlari = `<button class="btn btn-sm btn-outline-info py-0 me-1" title="Yazdır" onclick="proformaYazdir('${p.id}')"><i class="fas fa-print"></i></button><button class="btn btn-sm btn-outline-primary py-0 me-1" title="Düzenle" onclick="proformaAc('${p.id}')"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline-danger py-0" title="Sil" onclick="proformaSil('${p.id}')"><i class="fas fa-trash"></i></button>`;
               
               let html = `<tr><td>${p.tarih}</td><td><span class="text-truncate d-inline-block" style="max-width: 150px;">${p.cariUnvan}</span></td>
@@ -897,7 +897,7 @@
       const p = proformaListesi.find(x => x.id === id);
       const cari = cariListesi.find(c => c.id === p.cariId);
       const v = kunyeVerisi;
-      const birim = p.paraBirimi === 'USD' ? '$' : '€';
+      const birim = p.paraBirimi === 'USD' ? '$' : (p.paraBirimi === 'TRY' ? '₺' : '€');
       
       let dil = p.dil || 'TR';
       let t_baslik = dil === 'TR' ? 'PROFORMA FATURA' : 'PROFORMA INVOICE';
@@ -1104,8 +1104,8 @@
                   }
 
                   let kdv20 = parseFloat(r['Kdv%20']) || parseFloat(r['KDV%20']) || 0; 
-                  let kdv10 = parseFloat(r['Kdv%10']) || parseFloat(row['KDV%10']) || 0; 
-                  let kdv1 = parseFloat(r['Kdv%1']) || parseFloat(row['KDV%1']) || 0;
+                  let kdv10 = parseFloat(r['Kdv%10']) || parseFloat(r['KDV%10']) || 0; 
+                  let kdv1 = parseFloat(r['Kdv%1']) || parseFloat(r['KDV%1']) || 0;
                   let kdvOran = 0; let kdv = 0; let matrah = topTutar;
                   
                   if(kdv20 > 0) { kdv = kdv20; kdvOran = 20; matrah = parseFloat(r['Kdv Matrahı %20']) || (topTutar - kdv); }
@@ -2270,7 +2270,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false) {
                                     <div class="mb-3"><label class="form-label text-muted small mb-1">Proforma Tarihi *</label><input type="date" class="form-control" id="p_tarih" required></div>
                                     <div class="row mb-3">
                                         <div class="col-md-6"><label class="form-label text-muted small mb-1">Tutar *</label><input type="number" class="form-control" id="p_tutar" step="0.01" required></div>
-                                        <div class="col-md-6"><label class="form-label text-muted small mb-1">Para Birimi *</label><select class="form-select" id="p_paraBirimi"><option value="EUR">Euro (€)</option><option value="USD">Dolar ($)</option></select></div>
+                                        <div class="col-md-6"><label class="form-label text-muted small mb-1">Para Birimi *</label><select class="form-select" id="p_paraBirimi"><option value="TRY">Türk Lirası (₺)</option><option value="USD">Dolar ($)</option><option value="EUR">Euro (€)</option></select></div>
                                     </div>
                                     <div class="mb-3"><label class="form-label text-muted small mb-1">Hizmet / Danışmanlık Açıklaması *</label><textarea class="form-control" id="p_aciklama" rows="2" placeholder="Consultancy services for..."></textarea></div>
                                     <div class="mb-3"><label class="form-label text-muted small mb-1">Yazdırma Dili *</label><select class="form-select" id="p_dil"><option value="ENG">İngilizce (English)</option><option value="TR">Türkçe (TR)</option></select></div>
