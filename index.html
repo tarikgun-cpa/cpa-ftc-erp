@@ -1472,85 +1472,6 @@
       } catch(e) { alert("Hata: " + e.message); }
   };
 
-window.islemDuzenleKaydet = async function() {
-      const islemId = document.getElementById('hd_islemId').value;
-      const bankaId = document.getElementById('hd_bankaId').value;
-      const eskiCariId = document.getElementById('hd_eskiCari').value;
-      const eskiTur = document.getElementById('hd_eskiTur').value;
-      const tutar = parseFloat(document.getElementById('hd_tutar').value);
-      
-      const yeniTur = document.getElementById('hd_tur').value;
-      const yeniCariId = document.getElementById('hd_cariId').value;
-
-      if(isNaN(tutar) || tutar <= 0) {
-          alert("Kritik Hata: İşlem tutarı okunamadı. Lütfen sayfayı yenileyip tekrar deneyin.");
-          return;
-      }
-      if(!yeniCariId) { alert("Lütfen bir eşleştirme seçin!"); return; }
-      if(eskiCariId === yeniCariId && eskiTur === yeniTur) {
-          bootstrap.Modal.getInstance(document.getElementById('islemDuzenleModal')).hide();
-          return;
-      }
-
-      const btn = document.getElementById('btn_duzenle_kaydet');
-      btn.disabled = true; btn.innerHTML = 'İşleniyor...';
-
-      try {
-          // 1. ESKİ CARİ BAKİYESİNİ GERİ AL (Gerçek cari ise)
-          let isOldSistem = eskiCariId.startsWith('SISTEM_') || eskiCariId === 'MUHTELIF_SATICI' || eskiCariId === 'VERGI_DAIRESI';
-          if(!isOldSistem) {
-              const eskiCariIade = eskiTur === 'Tahsilat' ? tutar : -tutar; // Tahsilat düştü, şimdi geri ekliyoruz
-              await updateDoc(doc(db, "cariler", eskiCariId), { bakiye: increment(eskiCariIade) });
-          }
-
-          const islem = islemListesi.find(i => i.id === islemId);
-          let islemTarihi = islem.tarih ? new Date(islem.tarih.seconds * 1000) : new Date();
-
-          // 2. YENİ CARİYE VEYA BANKAYA UYGULA
-          let isNewVirman = yeniCariId.startsWith('BANKA_');
-          if (isNewVirman) {
-              let karsiBankaId = yeniCariId.replace('BANKA_', '');
-              
-              await updateDoc(doc(db, "hesapHareketleri", islemId), {
-                  cariId: 'SISTEM_VIRMAN', tur: yeniTur, aciklama: islem.aciklama + ' (Eşleştirildi)'
-              });
-              
-              await addDoc(collection(db, "hesapHareketleri"), {
-                  bankaId: karsiBankaId, cariId: 'SISTEM_VIRMAN', 
-                  tur: yeniTur === 'Tahsilat' ? 'Odeme' : 'Tahsilat', 
-                  tutar: tutar, aciklama: islem.aciklama + ' (Karşı Hesap)', tarih: islemTarihi
-              });
-              
-              let karsiFark = yeniTur === 'Tahsilat' ? -tutar : tutar;
-              await updateDoc(doc(db, "bankalar", karsiBankaId), { bakiye: increment(karsiFark) });
-          } else {
-              await updateDoc(doc(db, "hesapHareketleri", islemId), {
-                  cariId: yeniCariId, tur: yeniTur
-              });
-              
-              let isNewSistem = yeniCariId.startsWith('SISTEM_') || yeniCariId === 'MUHTELIF_SATICI' || yeniCariId === 'VERGI_DAIRESI';
-              if(!isNewSistem) {
-                  const yeniCariEtki = yeniTur === 'Tahsilat' ? -tutar : tutar;
-                  await updateDoc(doc(db, "cariler", yeniCariId), { bakiye: increment(yeniCariEtki) });
-              }
-          }
-
-          bootstrap.Modal.getInstance(document.getElementById('islemDuzenleModal')).hide();
-          // Ekstreyi modal kapandıktan sonra otomatik yenile
-          setTimeout(() => { 
-              if(document.getElementById('banka_ekstre_alan') && !document.getElementById('banka_ekstre_alan').classList.contains('d-none')) {
-                  window.bankaEkstreAc(bankaId, true); 
-              } else {
-                  window.bankalariCiz(); // Ekstre kapalıysa dışarıdaki tabloyu yenile
-              }
-          }, 300);
-      } catch(e) {
-          alert("Hata: " + e.message);
-      } finally {
-          btn.disabled = false; btn.innerHTML = 'Eşleştirmeyi Kaydet';
-      }
-  };
-
 window.islemDuzenleAc = function(id) {
       const islem = islemListesi.find(i => i.id === id);
       if(!islem) return;
@@ -1565,18 +1486,14 @@ window.islemDuzenleAc = function(id) {
       document.getElementById('hd_eskiCari').value = islem.cariId;
       document.getElementById('hd_eskiTur').value = islem.tur;
       
-      // Kilitli HTML Kodunu Zorla Aç ve Tutarı Yaz
-      let tutarInput = document.getElementById('hd_tutar_gosterim');
-      tutarInput.removeAttribute('readonly');
-      tutarInput.removeAttribute('disabled');
-      tutarInput.type = 'number';
-      tutarInput.step = '0.01';
-      
       let gercekYon = islem.yon ? islem.yon : (['Tahsilat', 'Faiz_Gelir'].includes(islem.tur) ? 'Tahsilat' : 'Odeme');
-      tutarInput.setAttribute('data-eski-yon', gercekYon);
+      
+      let tutarGosterim = document.getElementById('hd_tutar_gosterim');
+      tutarGosterim.setAttribute('data-eski-yon', gercekYon);
       
       document.getElementById('hd_tutar').value = islem.tutar;
-      tutarInput.value = islem.tutar;
+      tutarGosterim.value = islem.tutar.toString().replace('.', ',');
+      document.getElementById('hd_karsi_tutar').value = ''; // Döviz tutarı için boş gelir
       
       document.getElementById('hd_tur').value = islem.tur;
       window.hdTuruDegisti();
@@ -1584,6 +1501,89 @@ window.islemDuzenleAc = function(id) {
       
       bootstrap.Modal.getOrCreateInstance(document.getElementById('islemDuzenleModal')).show();
   };
+
+  window.islemDuzenleKaydet = async function() {
+      const islemId = document.getElementById('hd_islemId').value;
+      const bankaId = document.getElementById('hd_bankaId').value;
+      const eskiCariId = document.getElementById('hd_eskiCari').value;
+      const eskiTur = document.getElementById('hd_eskiTur').value;
+      const eskiTutar = parseFloat(document.getElementById('hd_tutar').value);
+      const eskiYon = document.getElementById('hd_tutar_gosterim').getAttribute('data-eski-yon');
+      
+      const yeniTur = document.getElementById('hd_tur').value;
+      const yeniCariId = document.getElementById('hd_cariId').value;
+      
+      let yeniTutarStr = document.getElementById('hd_tutar_gosterim').value;
+      if(typeof yeniTutarStr === 'string') { yeniTutarStr = yeniTutarStr.replace(/\./g, '').replace(',', '.'); }
+      const yeniTutar = parseFloat(yeniTutarStr);
+
+      let karsiTutarStr = document.getElementById('hd_karsi_tutar').value;
+      if(typeof karsiTutarStr === 'string') { karsiTutarStr = karsiTutarStr.replace(/\./g, '').replace(',', '.'); }
+      const karsiTutar = karsiTutarStr ? parseFloat(karsiTutarStr) : yeniTutar;
+
+      if(isNaN(yeniTutar) || yeniTutar <= 0) { alert("Lütfen geçerli bir işlem tutarı girin."); return; }
+      if(!yeniCariId) { alert("Lütfen bir eşleştirme seçin!"); return; }
+
+      const btn = document.getElementById('btn_duzenle_kaydet');
+      btn.disabled = true; btn.innerHTML = 'İşleniyor...';
+
+      try {
+          // 1. ESKİ CARİ VE BANKA BAKİYESİNİ TEMİZLE (Hatalı işlemleri geri al)
+          let isOldSistem = eskiCariId.startsWith('SISTEM_') || eskiCariId === 'MUHTELIF_SATICI' || eskiCariId === 'VERGI_DAIRESI';
+          if(eskiCariId.startsWith('BANKA_')) {
+              let oldBankaId = eskiCariId.replace('BANKA_', '');
+              let oldIadeFark = eskiYon === 'Tahsilat' ? eskiTutar : -eskiTutar;
+              await updateDoc(doc(db, "bankalar", oldBankaId), { bakiye: increment(oldIadeFark) });
+          } else if(!isOldSistem) {
+              const eskiCariIade = eskiYon === 'Tahsilat' ? eskiTutar : -eskiTutar; 
+              await updateDoc(doc(db, "cariler", eskiCariId), { bakiye: increment(eskiCariIade) });
+          }
+          const eskiBankaIade = eskiYon === 'Tahsilat' ? -eskiTutar : eskiTutar;
+          await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(eskiBankaIade) });
+
+          const islem = islemListesi.find(i => i.id === islemId);
+          let islemTarihi = islem.tarih ? new Date(islem.tarih.seconds * 1000) : new Date();
+          let yeniYon = eskiYon; // Yön excelden geldiği gibi sabit kalır
+
+          // 2. YENİ TUTARLARI (DÖVİZ VE TL) HESAPLARA UYGULA
+          let isNewVirman = yeniCariId.startsWith('BANKA_');
+          if (isNewVirman || yeniTur === 'Doviz_Alim_Satis' || yeniTur === 'Virman') {
+              let karsiBankaId = yeniCariId.replace('BANKA_', '');
+              
+              await updateDoc(doc(db, "hesapHareketleri", islemId), {
+                  cariId: 'SISTEM_VIRMAN', tur: yeniTur, tutar: yeniTutar, yon: yeniYon, aciklama: islem.aciklama + ' (Eşleştirildi)'
+              });
+              await addDoc(collection(db, "hesapHareketleri"), {
+                  bankaId: karsiBankaId, cariId: 'SISTEM_VIRMAN', tur: yeniTur, yon: yeniYon === 'Tahsilat' ? 'Odeme' : 'Tahsilat', tutar: karsiTutar, aciklama: islem.aciklama + ' (Karşı Hesap)', tarih: islemTarihi
+              });
+              
+              let karsiFark = yeniYon === 'Tahsilat' ? -karsiTutar : karsiTutar;
+              await updateDoc(doc(db, "bankalar", karsiBankaId), { bakiye: increment(karsiFark) });
+          } else {
+              await updateDoc(doc(db, "hesapHareketleri", islemId), {
+                  cariId: yeniCariId, tur: yeniTur, tutar: yeniTutar, yon: yeniYon
+              });
+              
+              let isNewSistem = yeniCariId.startsWith('SISTEM_') || yeniCariId === 'MUHTELIF_SATICI' || yeniCariId === 'VERGI_DAIRESI';
+              if(!isNewSistem) {
+                  const yeniCariEtki = yeniYon === 'Tahsilat' ? -yeniTutar : yeniTutar;
+                  await updateDoc(doc(db, "cariler", yeniCariId), { bakiye: increment(yeniCariEtki) });
+              }
+          }
+
+          const yeniBankaEtki = yeniYon === 'Tahsilat' ? yeniTutar : -yeniTutar;
+          await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(yeniBankaEtki) });
+
+          bootstrap.Modal.getInstance(document.getElementById('islemDuzenleModal')).hide();
+          setTimeout(() => { 
+              if(document.getElementById('banka_ekstre_alan') && !document.getElementById('banka_ekstre_alan').classList.contains('d-none')) {
+                  window.bankaEkstreAc(bankaId, true); 
+              } else { window.bankalariCiz(); }
+          }, 300);
+      } catch(e) { alert("Hata: " + e.message); } finally { btn.disabled = false; btn.innerHTML = 'Eşleştirmeyi Kaydet'; }
+  };
+
+
 
   window.hdTuruDegisti = function() {
       const tur = document.getElementById('hd_tur').value;
@@ -2092,13 +2092,16 @@ window.islemDuzenleAc = function(id) {
 
   window.islemKaydet = async function() {
       const tur = document.getElementById('i_tur').value; 
-      const anaYon = document.getElementById('i_anaYon').value; // Dropdown değişse bile buton yönü sabit kalır
+      const anaYon = document.getElementById('i_anaYon').value;
       const bankaId = document.getElementById('i_bankaId').value;
       const cariId = document.getElementById('i_cariId').value;
-      const tutar = parseFloat(document.getElementById('i_tutar').value) || 0;
       
-      let isVirman = (tur === 'Virman' || tur === 'Kredi_Karti_Odeme');
-      const aciklama = document.getElementById('i_aciklama').value || (isVirman ? 'Virman / Kart Ödemesi' : (cariId === 'SISTEM_DEVIR' ? 'Hesap Açılış Bakiyesi (Devir)' : 'Banka İşlemi'));
+      const tutar = parseFloat(document.getElementById('i_tutar').value) || 0;
+      const karsiTutarInput = document.getElementById('i_karsi_tutar');
+      const karsiTutar = (karsiTutarInput && karsiTutarInput.value) ? parseFloat(karsiTutarInput.value) : tutar;
+      
+      let isVirman = (tur === 'Virman' || tur === 'Kredi_Karti_Odeme' || tur === 'Doviz_Alim_Satis');
+      const aciklama = document.getElementById('i_aciklama').value || (isVirman ? 'Virman / Döviz İşlemi' : (cariId === 'SISTEM_DEVIR' ? 'Hesap Açılış Bakiyesi (Devir)' : 'Banka İşlemi'));
 
       if(!cariId || tutar <= 0) { alert("Lütfen cari/hesap seçip geçerli bir tutar girin."); return; }
 
@@ -2108,20 +2111,18 @@ window.islemDuzenleAc = function(id) {
       try {
           if(isVirman) {
               let bankaFarki = anaYon === 'Tahsilat' ? tutar : -tutar;
-              let karsiFark = anaYon === 'Tahsilat' ? -tutar : tutar;
+              let karsiFark = anaYon === 'Tahsilat' ? -karsiTutar : karsiTutar; // Döviz Karşılığı
               
-              // YENİ: yon parametresi eklendi
               await addDoc(collection(db, "hesapHareketleri"), {
                   bankaId: bankaId, cariId: 'SISTEM_VIRMAN', tur: tur, yon: anaYon, tutar: tutar, aciklama: aciklama + ' (İşlem Yapan)', tarih: new Date(document.getElementById('i_tarih').value)
               });
               await addDoc(collection(db, "hesapHareketleri"), {
-                  bankaId: cariId, cariId: 'SISTEM_VIRMAN', tur: tur, yon: anaYon === 'Tahsilat' ? 'Odeme' : 'Tahsilat', tutar: tutar, aciklama: aciklama + ' (Karşı Hesap)', tarih: new Date(document.getElementById('i_tarih').value)
+                  bankaId: cariId, cariId: 'SISTEM_VIRMAN', tur: tur, yon: anaYon === 'Tahsilat' ? 'Odeme' : 'Tahsilat', tutar: karsiTutar, aciklama: aciklama + ' (Karşı Hesap)', tarih: new Date(document.getElementById('i_tarih').value)
               });
               
               await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(bankaFarki) });
               await updateDoc(doc(db, "bankalar", cariId), { bakiye: increment(karsiFark) });
           } else {
-              // YENİ: yon parametresi eklendi
               await addDoc(collection(db, "hesapHareketleri"), {
                   bankaId: bankaId, cariId: cariId, tur: tur, yon: anaYon, tutar: tutar, aciklama: aciklama,
                   tarih: new Date(document.getElementById('i_tarih').value)
@@ -2140,7 +2141,6 @@ window.islemDuzenleAc = function(id) {
       } catch(e) { alert("Hata: " + e.message); } 
       finally { btn.disabled = false; btn.innerHTML = "İşlemi Tamamla"; }
   };
-
   // ---------------- ÖZEL EŞLEŞTİRME KURALLARI ----------------
   window.kurallarModalAc = function() {
       const select = document.getElementById('kural_hesap');
@@ -3633,9 +3633,15 @@ window.islemDuzenleAc = function(id) {
                                 <input type="hidden" id="hd_eskiTur">
                                 <input type="hidden" id="hd_tutar">
                                 
-                                <div class="mb-3">
-                                    <label class="form-label text-muted small fw-bold">İşlem Tutarı</label>
-                                    <input type="number" step="0.01" id="hd_tutar_gosterim" class="form-control bg-white fw-bold text-primary">
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label text-muted small fw-bold">Ana İşlem Tutarı</label>
+                                        <input type="text" id="hd_tutar_gosterim" class="form-control bg-white fw-bold text-primary">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label text-muted small fw-bold">Karşı Hesap Tutarı (Dövizse)</label>
+                                        <input type="text" id="hd_karsi_tutar" class="form-control bg-white fw-bold text-success" placeholder="Farklıysa girin">
+                                    </div>
                                 </div>
 
                                 <div class="mb-3">
@@ -3702,13 +3708,17 @@ window.islemDuzenleAc = function(id) {
                                     </div>
 
                                     <div class="row mb-3">
-                                        <div class="col-md-6">
+                                        <div class="col-md-4">
                                             <label class="form-label">İşlem Tarihi *</label>
                                             <input type="date" class="form-control" id="i_tarih" required>
                                         </div>
-                                        <div class="col-md-6">
+                                        <div class="col-md-4">
                                             <label class="form-label">Tutar *</label>
                                             <input type="number" class="form-control" id="i_tutar" step="0.01" required>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label text-success">Karşı Tutar (Döviz)</label>
+                                            <input type="number" class="form-control border-success" id="i_karsi_tutar" step="0.01" placeholder="Farklıysa">
                                         </div>
                                     </div>
                                     <div class="mb-3">
