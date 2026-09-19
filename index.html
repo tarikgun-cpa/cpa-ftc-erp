@@ -260,8 +260,8 @@
           onSnapshot(collection(db, "personel"), (snapshot) => {
               personelListesi = [];
               snapshot.forEach((doc) => { personelListesi.push({ id: doc.id, ...doc.data() }); });
-              // Aktif/Pasif durumuna göre alfabetik sırala
-              personelListesi.sort((a,b) => a.adSoyad.localeCompare(b.adSoyad));
+              // Boş isimlerden kaynaklanan çökmeyi önlemek için güvenli sıralama
+              personelListesi.sort((a,b) => (a.adSoyad || "").localeCompare(b.adSoyad || ""));
               if (document.getElementById('personelTabloGövdesi')) { window.personelleriCiz(); }
           });
 
@@ -416,7 +416,7 @@
             let tutarTry = f.toplamTutar * kurCarpan;
             
             if(f.tur === 'Satis' || f.tur === 'Ihracat' || f.tur === 'YerelSatis') aylikVeri[ayIndex].gelir += tutarTry;
-            else if(f.tur === 'Alim') {
+            else if(f.tur === 'Alim' || f.tur === 'SMM_Gider') {
                 aylikVeri[ayIndex].gider += tutarTry;
                 let kat = f.kategori || 'Genel Gider';
                 giderDagilimi[kat] = (giderDagilimi[kat] || 0) + tutarTry;
@@ -2988,7 +2988,7 @@ window.islemDuzenleAc = function(id) {
 
           tbody.innerHTML += `<tr class="${p.durum !== 'Aktif' ? 'opacity-50' : ''}">
               <td>
-                  <strong class="text-dark fs-6">${p.adSoyad}</strong><br>
+                  <strong class="text-dark fs-6">${p.adSoyad || 'İsimsiz Personel'}</strong><br>
                   <small class="text-muted">TC: ${p.tcNo || '-'}</small>
               </td>
               <td>${p.pozisyon || '-'}<br>${durumBadge}</td>
@@ -2997,9 +2997,9 @@ window.islemDuzenleAc = function(id) {
               <td class="text-danger fw-medium">${sgk.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td>
               <td class="fw-bold text-dark fs-6">${maliyet.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td>
               <td class="text-center">
-                  <button class="btn btn-sm btn-success py-0 me-1 shadow-sm" title="Maaş Öde" onclick="maasOdeAc('${p.adSoyad}', ${maas}, ${sgk})"><i class="fas fa-money-bill-wave"></i> Maaş</button>
-                  <button class="btn btn-sm btn-outline-primary py-0 me-1" title="Düzenle" onclick="personelDuzenleAc('${p.id}')"><i class="fas fa-edit"></i></button>
-                  <button class="btn btn-sm btn-outline-danger py-0" title="Sil" onclick="personelSil('${p.id}')"><i class="fas fa-trash"></i></button>
+                  <button class="btn btn-sm btn-success py-0 me-1 shadow-sm" title="Maaş Öde" onclick="window.maasOdeAc('${p.id}')"><i class="fas fa-money-bill-wave"></i> Maaş</button>
+                  <button class="btn btn-sm btn-outline-primary py-0 me-1" title="Düzenle" onclick="window.personelDuzenleAc('${p.id}')"><i class="fas fa-edit"></i></button>
+                  <button class="btn btn-sm btn-outline-danger py-0" title="Sil" onclick="window.personelSil('${p.id}')"><i class="fas fa-trash"></i></button>
               </td>
           </tr>`;
       });
@@ -3020,6 +3020,7 @@ window.islemDuzenleAc = function(id) {
 
   window.personelDuzenleAc = function(id) {
       const p = personelListesi.find(x => x.id === id);
+      if(!p) return;
       document.getElementById('per_id').value = p.id;
       document.getElementById('per_ad').value = p.adSoyad;
       document.getElementById('per_tc').value = p.tcNo || '';
@@ -3050,7 +3051,9 @@ window.islemDuzenleAc = function(id) {
           if(id) await updateDoc(doc(db, "personel", id), data);
           else { data.islemTarihi = serverTimestamp(); await addDoc(collection(db, "personel"), data); }
           bootstrap.Modal.getOrCreateInstance(document.getElementById('yeniPersonelModal')).hide();
-      } catch(e) { alert("Hata: " + e.message); }
+      } catch(e) { 
+          alert("Kayıt Hatası: " + e.message); 
+      }
   };
 
   window.personelSil = async function(id) {
@@ -3058,17 +3061,20 @@ window.islemDuzenleAc = function(id) {
       try { await deleteDoc(doc(db, "personel", id)); } catch(e) { alert("Hata: " + e.message); }
   };
 
-  window.maasOdeAc = function(adSoyad, netMaas, sgkMaliyeti) {
-      document.getElementById('mo_per_ad').value = adSoyad;
-      document.getElementById('mo_tutar').value = netMaas;
-      document.getElementById('mo_sgk_tutar').value = sgkMaliyeti || 0;
+  window.maasOdeAc = function(id) {
+      const p = personelListesi.find(x => x.id === id);
+      if(!p) return;
+      
+      document.getElementById('mo_per_ad').value = p.adSoyad;
+      document.getElementById('mo_tutar').value = p.netMaas || 0;
+      document.getElementById('mo_sgk_tutar').value = p.sgkMaliyeti || 0;
       document.getElementById('mo_tarih').value = new Date().toISOString().split('T')[0];
       
       let aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
       let oncekiAy = new Date().getMonth() === 0 ? 11 : new Date().getMonth() - 1;
       let yariYil = new Date().getMonth() === 0 ? new Date().getFullYear() - 1 : new Date().getFullYear();
       
-      document.getElementById('mo_aciklama').value = `Personel Maaşı: ${adSoyad} (${aylar[oncekiAy]} ${yariYil})`;
+      document.getElementById('mo_aciklama').value = `Personel Maaşı: ${p.adSoyad} (${aylar[oncekiAy]} ${yariYil})`;
       
       const sec = document.getElementById('mo_bankaId'); 
       sec.innerHTML = '<option value="">-- Kasa veya Banka Seçin --</option>';
@@ -3086,9 +3092,6 @@ window.islemDuzenleAc = function(id) {
       const adSoyad = document.getElementById('mo_per_ad').value;
       
       if(!bankaId || tutar <= 0) { alert("Lütfen Kasa/Banka seçin ve geçerli bir tutar girin."); return; }
-
-      const btn = document.querySelector("#maasOdeModal .btn-success");
-      btn.innerHTML = "Ödeniyor..."; btn.disabled = true;
 
       try {
           // 1. Bankadan parayı düş ve SISTEM_MAAS hesap hareketi oluştur
@@ -3159,8 +3162,9 @@ window.islemDuzenleAc = function(id) {
 
           bootstrap.Modal.getOrCreateInstance(document.getElementById('maasOdeModal')).hide();
           alert("Maaş ödemesi başarıyla kaydedildi!\nNet Tutar bankadan düşüldü, SGK maliyeti 'Vergiler' takvimine ve Kâr/Zarar tablolarına Gider (Alım Faturası) olarak işlendi.");
-      } catch(e) { alert("Hata: " + e.message); }
-      finally { btn.innerHTML = "Ödemeyi Tamamla"; btn.disabled = false; }
+      } catch(e) { 
+          alert("Hata: " + e.message); 
+      }
   };
   // ---------------- RAPORLAMA VE AI ANALİZ İŞLEMLERİ ----------------
   window.raporUret = function() {
@@ -3176,7 +3180,7 @@ window.islemDuzenleAc = function(id) {
           if(f.tarih >= bas && f.tarih <= bit && f.durum !== 'Iptal') {
               let tutarEur = f.paraBirimi === 'USD' ? (f.toplamTutar * usdKur) : f.toplamTutar;
               if(f.tur === 'Satis' || f.tur === 'Ihracat' || f.tur === 'YerelSatis') fSatis += tutarEur;
-              else if(f.tur === 'Alim') fAlim += tutarEur;
+              else if(f.tur === 'Alim' || f.tur === 'SMM_Gider') fAlim += tutarEur;
           }
       });
 
