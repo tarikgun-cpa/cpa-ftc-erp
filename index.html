@@ -1704,6 +1704,115 @@ window.islemDuzenleKaydet = async function() {
       } catch(e) { alert("Hata: " + e.message); }
   };
 
+  window.bankaEkstreAc = async function(bankaId, reRender = false, sadeceEslesmeyenler = false) {
+      const banka = bankaListesi.find(b => b.id === bankaId);
+      let birim = banka.paraBirimi === 'USD' ? '$' : (banka.paraBirimi === 'TRY' ? '₺' : '€');
+      
+      let basTarih = reRender && document.getElementById('ex_banka_bas') ? document.getElementById('ex_banka_bas').value : '';
+      let bitTarih = reRender && document.getElementById('ex_banka_bit') ? document.getElementById('ex_banka_bit').value : '';
+
+      let tamHareketler = islemListesi.filter(i => i.bankaId === bankaId).map(i => {
+          let dStr = i.tarih ? new Date(i.tarih.seconds * 1000).toISOString().split('T')[0] : '';
+          return { ...i, tarihStr: dStr, hamTarih: new Date(dStr).getTime() };
+      });
+      tamHareketler.sort((a,b) => a.hamTarih - b.hamTarih); 
+      
+      if(!reRender && !sadeceEslesmeyenler) {
+          let hesaplananBankaBakiye = 0;
+          tamHareketler.forEach(h => { hesaplananBankaBakiye += (h.tur === 'Tahsilat' ? h.tutar : -h.tutar); });
+          hesaplananBankaBakiye = parseFloat(hesaplananBankaBakiye.toFixed(2));
+          let mevcutBankaBakiye = parseFloat((banka.bakiye || 0).toFixed(2));
+
+          if(hesaplananBankaBakiye !== mevcutBankaBakiye) {
+              updateDoc(doc(db, "bankalar", bankaId), { bakiye: hesaplananBankaBakiye });
+              banka.bakiye = hesaplananBankaBakiye;
+          }
+      }
+
+      let html = `<div id="yazdirilacak-alan" class="p-4 bg-white shadow-sm rounded border border-light">
+          <div class="d-flex justify-content-between align-items-end mb-4 border-bottom pb-3">
+              <div class="d-flex align-items-center">
+                  <img src="Logo2.png" style="height: 60px; margin-right: 20px;" class="d-none d-print-block">
+                  <div>
+                      <h4 class="mb-0 text-dark fw-bold">${banka.hesapAdi}</h4>
+                      <small class="text-muted">Banka/Kasa Ekstresi</small>
+                      ${banka.tur === 'Banka' ? '<br><small class="text-muted d-block mt-1" style="font-size:11px;"><strong>IBAN:</strong> ' + (banka.iban || '-') + ' | <strong>Yerel Hesap:</strong> ' + (banka.yerelHesap || '-') + '</small>' : ''}
+                  </div>
+              </div>
+              <div class="text-end"><h6 class="mb-0 text-muted small">Güncel Kapanış Bakiyesi</h6><h4 class="${banka.bakiye >= 0 ? 'text-success' : 'text-danger'} fw-bold mb-0">${banka.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${birim}</h4></div>
+          </div>
+          
+          <div class="row mb-3 d-print-none bg-light p-2 rounded mx-0">
+              <div class="col-md-3"><label class="small text-muted">Başlangıç Tarihi</label><input type="date" id="ex_banka_bas" class="form-control form-control-sm" value="${basTarih}"></div>
+              <div class="col-md-3"><label class="small text-muted">Bitiş Tarihi</label><input type="date" id="ex_banka_bit" class="form-control form-control-sm" value="${bitTarih}"></div>
+              <div class="col-md-3 d-flex align-items-end"><button class="btn btn-sm btn-primary w-100" onclick="bankaEkstreAc('${bankaId}', true)"><i class="fas fa-filter"></i> Tarihe Göre Filtrele</button></div>
+              <div class="col-md-3 d-flex align-items-end"><button class="btn btn-sm btn-warning w-100 fw-bold" onclick="bankaEkstreAc('${bankaId}', true, true)"><i class="fas fa-exclamation-triangle"></i> Eşleşmeyenleri Göster</button></div>
+          </div>
+
+          <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle">
+              <thead class="table-light text-muted small border-bottom border-dark border-2"><tr><th>Tarih</th><th>İşlem Yönü</th><th>Cari Unvan (Kime/Kimden)</th><th>Açıklama</th><th class="text-end">Giriş (+)</th><th class="text-end">Çıkış (-)</th><th class="text-end">Bakiye</th><th class="d-print-none text-center">Aksiyon</th></tr></thead>
+              <tbody>`;
+              
+      if(tamHareketler.length === 0) { 
+          html += `<tr><td colspan="8" class="text-center text-muted py-3">İşlem bulunamadı.</td></tr>`; 
+      } else {
+          let toplamGiris = 0; let toplamCikis = 0; let yuruyenBakiye = 0;
+          let filtrelenenKayitSayisi = 0;
+
+          tamHareketler.forEach(h => {
+              let islemTutari = h.tur === 'Tahsilat' ? h.tutar : -h.tutar;
+              yuruyenBakiye += islemTutari; 
+
+              if(basTarih && h.tarihStr < basTarih) return;
+              if(bitTarih && h.tarihStr > bitTarih) return;
+              if(sadeceEslesmeyenler && h.cariId !== 'SISTEM_ESLESMEYEN') return;
+
+              filtrelenenKayitSayisi++;
+              let d = h.tarih ? new Date(h.tarih.seconds * 1000).toLocaleDateString('tr-TR') : '-';
+              
+              let cariAdi = h.cariId === "VERGI_DAIRESI" ? "Vergi / Yasal Kurum" 
+                          : (h.cariId === "SISTEM_DEVIR" ? "Açılış Bakiyesi / Devir" 
+                          : (h.cariId === "SISTEM_ESLESMEYEN" ? `<span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle"></i> Eşleştirme Bekliyor</span>`
+                          : (cariListesi.find(c => c.id === h.cariId)?.unvan || 'Diğer Sistem İşlemi')));
+              
+              let girisStr = '-'; let cikisStr = '-';
+              if(h.tur === 'Tahsilat') { girisStr = `${h.tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${birim}`; toplamGiris += h.tutar; }
+              else if(h.tur === 'Odeme') { cikisStr = `${h.tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${birim}`; toplamCikis += h.tutar; }
+              
+              let aksiyonButonlari = `
+                  <button class="btn btn-sm btn-outline-primary py-0 me-1" onclick="islemDuzenleAc('${h.id}')" title="İşlemi Değiştir / Eşleştir"><i class="fas fa-edit"></i> Değiştir</button>
+                  <button class="btn btn-sm btn-outline-danger py-0" onclick="islemSil('${h.id}', '${h.cariId}', '${h.bankaId}', '${h.tur}', ${h.tutar})" title="İşlemi İptal Et"><i class="fas fa-trash"></i></button>
+              `;
+              
+              html += `<tr><td class="small">${d}</td><td class="small text-muted">${h.tur}</td><td class="small">${cariAdi}</td><td class="small">${h.aciklama}</td><td class="text-end fw-medium text-success">${girisStr}</td><td class="text-end fw-medium text-danger">${cikisStr}</td><td class="text-end fw-bold text-primary">${yuruyenBakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${birim}</td><td class="d-print-none text-center">${aksiyonButonlari}</td></tr>`;
+          });
+
+          if(filtrelenenKayitSayisi === 0) {
+              html += `<tr><td colspan="8" class="text-center text-muted py-3">Bu tarih aralığında işlem bulunamadı.</td></tr>`;
+          } else {
+              html += `<tr class="table-light border-top border-dark border-2"><td colspan="4" class="text-end fw-bold small text-muted">FİLTRELENEN DÖNEM TOPLAMI:</td><td class="text-end fw-bold text-success">${toplamGiris.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${birim}</td><td class="text-end fw-bold text-danger">${toplamCikis.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${birim}</td><td colspan="2"></td></tr>`;
+          }
+      }
+
+      html += `</tbody></table></div></div>`;
+      html += `<div class="mt-3"><button class="btn btn-secondary shadow-sm" onclick="window.print()"><i class="fas fa-print"></i> Yazdır</button> <button class="btn btn-outline-danger ms-2" onclick="document.getElementById('banka_ekstre_alan').classList.add('d-none'); document.getElementById('banka_ana_alan').classList.remove('d-none'); window.bankalariCiz();">Kapat</button></div>`;
+      
+      let anaAlan = document.getElementById('banka_ana_alan');
+      if (!anaAlan) {
+          let mevcutHTML = document.getElementById('main-content').innerHTML;
+          document.getElementById('main-content').innerHTML = `
+              <div id="banka_ana_alan">${mevcutHTML}</div>
+              <div id="banka_ekstre_alan" class="d-none"></div>
+          `;
+          anaAlan = document.getElementById('banka_ana_alan');
+      }
+
+      anaAlan.classList.add('d-none');
+      document.getElementById('banka_ekstre_alan').innerHTML = html;
+      document.getElementById('banka_ekstre_alan').classList.remove('d-none');
+  };
+
   window.kurFarkiModalAc = function() {
       const select = document.getElementById('kf_cariId');
       select.innerHTML = '<option value="">-- Cari Seçiniz --</option>';
@@ -1941,9 +2050,10 @@ window.islemDuzenleKaydet = async function() {
               
               let rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
               let headerRowIndex = -1;
-              for(let i = 0; i < Math.min(10, rawRows.length); i++) {
-                  let rowText = rawRows[i].join(' ');
-                  if(rowText.includes('İşlem Tutarı') || rowText.includes('Tutar')) {
+              // Enpara ekstrelerinde başlıklar aşağıda olabiliyor, 40 satıra kadar taratıyoruz.
+              for(let i = 0; i < Math.min(40, rawRows.length); i++) {
+                  let rowText = rawRows[i] ? rawRows[i].join(' ') : '';
+                  if(rowText.includes('İşlem Tutarı') || rowText.includes('Tutar') || rowText.includes('Tarih')) {
                       headerRowIndex = i; break;
                   }
               }
@@ -1959,8 +2069,8 @@ window.islemDuzenleKaydet = async function() {
               const tbody = document.getElementById('excel_hareketler_tablosu');
               tbody.innerHTML = '';
 
-              // --- YENİ GELİŞMİŞ DROP-DOWN LİSTESİ OLUŞTURMA ---
               let cariOptionsHtml = '<option value="">-- LÜTFEN EŞLEŞTİRME SEÇİNİZ --</option>';
+              cariOptionsHtml += '<option value="SISTEM_ESLESMEYEN" class="text-warning fw-bold">⚠️ EŞLEŞTİRME BEKLİYOR</option>';
               
               cariOptionsHtml += '<optgroup label="Banka, Kasa ve Kredi Kartları (Virman / Kart Ödemesi İçin)">';
               bankaListesi.forEach(b => {
@@ -1991,11 +2101,14 @@ window.islemDuzenleKaydet = async function() {
                   let aciklama = String(r['Açıklama'] || r['İşlem Açıklaması'] || '').trim();
                   let hareketTipi = String(r['Hareket tipi'] || r['İşlem Tipi'] || '').trim();
                   
-                  let tutarStr = r['İşlem Tutarı (TL)'] || r['İşlem Tutarı'] || r['Tutar'] || r['Tutar (TL)'] || 0;
+                  let tutarStr = String(r['İşlem Tutarı (TL)'] || r['İşlem Tutarı'] || r['Tutar'] || r['Tutar (TL)'] || r['Alacak'] || r['Borç'] || 0);
                   
-                  // Tutar virgülle veya binler ayracıyla yazılmışsa düzelt (örn: 1.250,50 -> 1250.50)
-                  if(typeof tutarStr === 'string') {
+                  // ENPARA DÜZELTMESİ: Boşlukları, TL yazılarını at. Virgül ve noktayı düzelt.
+                  tutarStr = tutarStr.replace(/[^0-9,\.-]/g, '');
+                  if(tutarStr.includes('.') && tutarStr.includes(',')) {
                       tutarStr = tutarStr.replace(/\./g, '').replace(',', '.');
+                  } else if(tutarStr.includes(',')) {
+                      tutarStr = tutarStr.replace(',', '.');
                   }
                   
                   let tutar = parseFloat(tutarStr);
@@ -2012,7 +2125,6 @@ window.islemDuzenleKaydet = async function() {
                       else dStr = tarih;
                   }
 
-                  // YÖNÜ KESİN MATEMATİKSEL TESPİT ETME (+ ise Giriş/Tahsilat, - ise Çıkış/Ödeme)
                   let rawTipLower = String(hareketTipi).toLocaleLowerCase('tr-TR');
                   let anaYon = tutar >= 0 ? 'Tahsilat' : 'Odeme'; 
                   if (tutar < 0 || rawTipLower.includes('gider') || rawTipLower.includes('cikis') || rawTipLower.includes('çıkış') || rawTipLower.includes('borc') || rawTipLower.includes('borç') || rawTipLower.includes('ödenen')) {
@@ -2025,7 +2137,6 @@ window.islemDuzenleKaydet = async function() {
                   let eslesenCariId = '';
                   let islemTuruOto = anaYon;
 
-                  // TÜRKÇE NORMALİZASYON
                   let normalizeString = (str) => {
                       return String(str || '').toLocaleLowerCase('tr-TR')
                           .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's')
@@ -2033,26 +2144,44 @@ window.islemDuzenleKaydet = async function() {
                           .replace(/[^a-z0-9\s]/g, ''); 
                   };
 
-                  
-                  let bankaYasakli = ['kredi', 'karti', 'hesabi', 'sirket', 'sirketi', 'sirketim', 'tl', 'usd', 'eur', 'bankasi', 'bank'];
-                  for (let b of bankaListesi) {
-                      if (b.id !== bankaId) {
-                          let bNorm = normalizeString(b.hesapAdi);
-                          if (aciklamaNorm.includes(bNorm) || aciklamaNorm.replace(/\s/g, '').includes(bNorm.replace(/\s/g, ''))) {
-                              eslesenCariId = 'BANKA_' + b.id;
-                              islemTuruOto = b.tur === 'Kredi Karti' ? 'Kredi_Karti_Odeme' : 'Virman';
+                  let aciklamaNorm = normalizeString(aciklama);
+                  let aciklamaKelimeleri = aciklamaNorm.split(' ').filter(w => w.length > 2);
+                  let tipNorm = normalizeString(hareketTipi);
+
+                  // 0. ADIM: KULLANICI ÖZEL EŞLEŞTİRME KURALLARI (EN YÜKSEK ÖNCELİK)
+                  if(typeof ozelKurallar !== 'undefined' && ozelKurallar.length > 0) {
+                      for (let kural of ozelKurallar) {
+                          let kuralKelimeNorm = normalizeString(kural.kelime);
+                          if(aciklamaNorm.includes(kuralKelimeNorm)) {
+                              eslesenCariId = kural.cariId;
+                              islemTuruOto = kural.islemTuru;
                               break;
                           }
-                          let bKelimeleri = bNorm.split(' ').filter(w => w.length > 2 && !bankaYasakli.includes(w));
-                          if (bKelimeleri.length > 0) {
-                              let eslesenBankaKelimesi = 0;
-                              for(let bw of bKelimeleri) {
-                                  if (aciklamaNorm.includes(bw)) eslesenBankaKelimesi++;
-                              }
-                              if (eslesenBankaKelimesi === bKelimeleri.length) { 
+                      }
+                  }
+
+                  // 1. ADIM: BANKA VE KARTLARA BAK (VİRMAN İÇİN)
+                  if(!eslesenCariId) {
+                      let bankaYasakli = ['kredi', 'karti', 'hesabi', 'sirket', 'sirketi', 'sirketim', 'tl', 'usd', 'eur', 'bankasi', 'bank'];
+                      for (let b of bankaListesi) {
+                          if (b.id !== bankaId) {
+                              let bNorm = normalizeString(b.hesapAdi);
+                              if (aciklamaNorm.includes(bNorm) || aciklamaNorm.replace(/\s/g, '').includes(bNorm.replace(/\s/g, ''))) {
                                   eslesenCariId = 'BANKA_' + b.id;
                                   islemTuruOto = b.tur === 'Kredi Karti' ? 'Kredi_Karti_Odeme' : 'Virman';
                                   break;
+                              }
+                              let bKelimeleri = bNorm.split(' ').filter(w => w.length > 2 && !bankaYasakli.includes(w));
+                              if (bKelimeleri.length > 0) {
+                                  let eslesenBankaKelimesi = 0;
+                                  for(let bw of bKelimeleri) {
+                                      if (aciklamaNorm.includes(bw)) eslesenBankaKelimesi++;
+                                  }
+                                  if (eslesenBankaKelimesi === bKelimeleri.length) { 
+                                      eslesenCariId = 'BANKA_' + b.id;
+                                      islemTuruOto = b.tur === 'Kredi Karti' ? 'Kredi_Karti_Odeme' : 'Virman';
+                                      break;
+                                  }
                               }
                           }
                       }
@@ -2135,8 +2264,8 @@ window.islemDuzenleKaydet = async function() {
                   });
 
                   let rowColor = anaYon === 'Tahsilat' ? 'text-success' : 'text-danger';
-                  let statusIcon = eslesenCariId ? '<i class="fas fa-check-circle text-success" title="Eşleşti"></i>' : '<i class="fas fa-exclamation-circle text-warning" title="Eşleşmedi"></i>';
-                  let bgColor = eslesenCariId ? '' : 'bg-warning bg-opacity-10';
+                  let statusIcon = (eslesenCariId && eslesenCariId !== 'SISTEM_ESLESMEYEN') ? '<i class="fas fa-check-circle text-success" title="Eşleşti"></i>' : '<i class="fas fa-exclamation-circle text-warning" title="Eşleşmedi"></i>';
+                  let bgColor = (eslesenCariId && eslesenCariId !== 'SISTEM_ESLESMEYEN') ? '' : 'bg-warning bg-opacity-10';
 
                   let turSelectHtml = `
                       <select class="form-select form-select-sm border-0 bg-transparent text-secondary mb-1" id="ex_tur_${index}" style="font-size: 0.7rem; padding: 0;">
@@ -2181,31 +2310,45 @@ window.islemDuzenleKaydet = async function() {
               document.getElementById('excel_kaydet_btn').classList.remove('d-none');
 
           } catch(err) {
-              alert("Dosya okunamadı. Enpara veya standart banka formatında olduğundan emin olun.");
+              alert("Dosya okunamadı. Enpara veya standart banka formatında olduğundan emin olun. Detay: " + err.message);
               console.error(err);
           }
       };
       reader.readAsArrayBuffer(file);
   };
-
   window.bankaEkstreTopluKaydet = async function() {
       const btn = document.getElementById('excel_kaydet_btn');
       btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Kaydediliyor...'; btn.disabled = true;
       
       let islenenSayi = 0;
       let atlananSayi = 0;
+      let ogrenilenKuralSayisi = 0;
 
       for (let h of excelOkunanHareketler) {
           let secimId = document.getElementById(`ex_cari_${h.index}`).value;
           let islemTuru = document.getElementById(`ex_tur_${h.index}`).value;
           
-          if(!secimId) {
+          if(!secimId || secimId === 'SISTEM_ESLESMEYEN') {
               atlananSayi++;
               document.getElementById(`ex_row_${h.index}`).classList.replace('bg-warning', 'bg-danger');
               continue; 
           }
 
           try {
+              // MANUEL SEÇİMLERİ YAPAY ZEKA GİBİ KURALLARA ÖĞRET (OTO KURAL)
+              if(h.eslesenId === 'SISTEM_ESLESMEYEN' || h.eslesenId === '') {
+                  let kelimeOnerisi = h.aciklama.trim().split(/\s+/).slice(0, 2).join(' '); // Açıklamanın ilk 2 kelimesi kural olsun
+                  if(kelimeOnerisi.length > 3) {
+                      let kurallarArray = (typeof ozelKurallar !== 'undefined' ? ozelKurallar : []);
+                      let kuralVarMi = kurallarArray.some(k => k.kelime.toLowerCase() === kelimeOnerisi.toLowerCase());
+                      if(!kuralVarMi) {
+                          kurallarArray.push({ kelime: kelimeOnerisi, islemTuru: islemTuru, cariId: secimId });
+                          await setDoc(doc(db, "ayarlar", "kurallar"), { liste: kurallarArray });
+                          ogrenilenKuralSayisi++;
+                      }
+                  }
+              }
+
               let gercekYon = h.anaYon; // Exceldeki asıl giriş çıkış yönü
               
               if(secimId.startsWith('BANKA_')) {
@@ -2253,7 +2396,7 @@ window.islemDuzenleKaydet = async function() {
           }
       }
 
-      alert(`Toplu İşlem Tamamlandı!\n${islenenSayi} hareket başarıyla sisteme aktarıldı.\nSarı Uyarı İkonlu hareketler (Taslak) olarak işlenmiş olup Banka Ekstreniz üzerinden Değiştir butonuna basarak doğru Cariye eşleştirebilirsiniz.`);
+      alert(`Toplu İşlem Tamamlandı!\n${islenenSayi} hareket başarıyla sisteme aktarıldı.\n${ogrenilenKuralSayisi} adet yeni Otomatik Eşleşme Kuralı sistem hafızasına alındı!\n(Sarı Uyarı İkonlu hareketler atlanmıştır, işlemi ekstre üzerinden yapabilirsiniz)`);
       btn.innerHTML = '<i class="fas fa-save me-1"></i> Eşleşenleri Sisteme Kaydet'; btn.disabled = false;
   };
 
