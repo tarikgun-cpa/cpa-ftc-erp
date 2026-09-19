@@ -1545,20 +1545,23 @@ window.islemDuzenleAc = function(id) {
           let islemTarihi = islem.tarih ? new Date(islem.tarih.seconds * 1000) : new Date();
           let yeniYon = eskiYon; // Yön excelden geldiği gibi sabit kalır
 
-          // 2. YENİ TUTARLARI (DÖVİZ VE TL) HESAPLARA UYGULA
+          // 2. YENİ TUTARLARI VE YENİ YÖNÜ UYGULA
           let isNewVirman = yeniCariId.startsWith('BANKA_');
-          if (isNewVirman || yeniTur === 'Doviz_Alim_Satis' || yeniTur === 'Virman') {
+          if (isNewVirman) {
               let karsiBankaId = yeniCariId.replace('BANKA_', '');
+              let karsiYon = yeniYon === 'Tahsilat' ? 'Odeme' : 'Tahsilat';
               
               await updateDoc(doc(db, "hesapHareketleri", islemId), {
                   cariId: 'SISTEM_VIRMAN', tur: yeniTur, tutar: yeniTutar, yon: yeniYon, aciklama: islem.aciklama + ' (Eşleştirildi)'
               });
-              await addDoc(collection(db, "hesapHareketleri"), {
-                  bankaId: karsiBankaId, cariId: 'SISTEM_VIRMAN', tur: yeniTur, yon: yeniYon === 'Tahsilat' ? 'Odeme' : 'Tahsilat', tutar: karsiTutar, aciklama: islem.aciklama + ' (Karşı Hesap)', tarih: islemTarihi
-              });
               
-              let karsiFark = yeniYon === 'Tahsilat' ? -karsiTutar : karsiTutar;
-              await updateDoc(doc(db, "bankalar", karsiBankaId), { bakiye: increment(karsiFark) });
+              if(karsiBankaId && karsiBankaId !== 'SISTEM_VIRMAN') {
+                  await addDoc(collection(db, "hesapHareketleri"), {
+                      bankaId: karsiBankaId, cariId: 'SISTEM_VIRMAN', tur: yeniTur, yon: karsiYon, tutar: karsiTutar, aciklama: islem.aciklama + ' (Karşı Hesap)', tarih: islemTarihi
+                  });
+                  let karsiFark = karsiYon === 'Tahsilat' ? karsiTutar : -karsiTutar;
+                  await updateDoc(doc(db, "bankalar", karsiBankaId), { bakiye: increment(karsiFark) });
+              }
           } else {
               await updateDoc(doc(db, "hesapHareketleri", islemId), {
                   cariId: yeniCariId, tur: yeniTur, tutar: yeniTutar, yon: yeniYon
@@ -1687,28 +1690,42 @@ window.islemDuzenleAc = function(id) {
   window.islemSil = async function(islemId, cariId, bankaId, tur, islemTutari) {
       if(!confirm("Bu banka hareketini silmek istediğinize emin misiniz? İlgili hesap bakiyeleri otomatik olarak iade edilecektir.")) return;
       try {
+          const islem = islemListesi.find(i => i.id === islemId);
+          let gercekYon = islem.yon ? islem.yon : (['Tahsilat', 'Faiz_Gelir'].includes(islem.tur) ? 'Tahsilat' : 'Odeme');
           let tutar = Math.abs(parseFloat(islemTutari)); 
+          
+          // EĞER ÇİFT TARAFLI BİR İŞLEMSE KARŞI TUTARI DA BUL (Döviz için)
+          let karsiTutar = tutar;
+          let karsiIslem = null;
+          if (cariId === 'SISTEM_VIRMAN') {
+             // Bu işlemin aynısı olan ama diğer bankaya ait olan karşı kaydı bul
+             karsiIslem = islemListesi.find(i => i.cariId === 'SISTEM_VIRMAN' && i.id !== islemId && Math.abs(i.hamTarih - islem.hamTarih) < 2000);
+             if (karsiIslem) { karsiTutar = Math.abs(parseFloat(karsiIslem.tutar)); }
+          }
+          
           await deleteDoc(doc(db, "hesapHareketleri", islemId));
 
-          const bankaFarki = tur === 'Tahsilat' ? -tutar : tutar;
-          const cariFarki = tur === 'Tahsilat' ? tutar : -tutar;
+          const bankaFarki = gercekYon === 'Tahsilat' ? -tutar : tutar;
+          const cariFarki = gercekYon === 'Tahsilat' ? karsiTutar : -karsiTutar;
 
-          // SİLİNEN İŞLEM VİRMAN / KART ÖDEMESİ İSE (Karşı bankaya iade et)
           if (cariId.startsWith('BANKA_')) {
               let karsiBankaId = cariId.replace('BANKA_', '');
               await updateDoc(doc(db, "bankalar", karsiBankaId), { bakiye: increment(cariFarki) });
           } 
-          // SİLİNEN İŞLEM GERÇEK BİR CARİ İSE (Müşteri, Tedarikçi, Ortak)
+          else if (cariId === 'SISTEM_VIRMAN' && karsiIslem) {
+              // Virman silindiğinde karşı bankanın da parasını iade et ve o kaydı da sil
+              let digerYonu = karsiIslem.yon === 'Tahsilat' ? -karsiTutar : karsiTutar;
+              await updateDoc(doc(db, "bankalar", karsiIslem.bankaId), { bakiye: increment(digerYonu) });
+              await deleteDoc(doc(db, "hesapHareketleri", karsiIslem.id));
+          }
           else if (!cariId.startsWith('SISTEM_') && cariId !== 'MUHTELIF_SATICI' && cariId !== 'VERGI_DAIRESI') {
               await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(cariFarki) });
           }
           
-          // MEVCUT BANKA BAKİYESİNİ İADE ET
           if(bankaId !== "KUR_FARKI") {
               await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(bankaFarki) });
           }
 
-          // İşlem bittiğinde sayfadan atmadan ekstreyi yenile
           setTimeout(() => { 
               if(typeof window.bankaEkstreAc === 'function') {
                   window.bankaEkstreAc(bankaId, true); 
@@ -1978,38 +1995,7 @@ window.islemDuzenleAc = function(id) {
       try { await deleteDoc(doc(db, "bankalar", id)); } catch(e) { alert("Hata: " + e.message); }
   };
 
-  window.islemSil = async function(islemId, cariId, bankaId, tur, islemTutari) {
-      if(!confirm("Bu banka hareketini silmek istediğinize emin misiniz? İlgili hesap bakiyeleri otomatik olarak iade edilecektir.")) return;
-      try {
-          const islem = islemListesi.find(i => i.id === islemId);
-          let gercekYon = islem.yon ? islem.yon : (['Tahsilat', 'Faiz_Gelir'].includes(islem.tur) ? 'Tahsilat' : 'Odeme');
-          let tutar = Math.abs(parseFloat(islemTutari)); 
-          await deleteDoc(doc(db, "hesapHareketleri", islemId));
-
-          const bankaFarki = gercekYon === 'Tahsilat' ? -tutar : tutar;
-          const cariFarki = gercekYon === 'Tahsilat' ? tutar : -tutar;
-
-          if (cariId.startsWith('BANKA_')) {
-              let karsiBankaId = cariId.replace('BANKA_', '');
-              await updateDoc(doc(db, "bankalar", karsiBankaId), { bakiye: increment(cariFarki) });
-          } 
-          else if (!cariId.startsWith('SISTEM_') && cariId !== 'MUHTELIF_SATICI' && cariId !== 'VERGI_DAIRESI') {
-              await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(cariFarki) });
-          }
-          
-          if(bankaId !== "KUR_FARKI") {
-              await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(bankaFarki) });
-          }
-
-          setTimeout(() => { 
-              if(typeof window.bankaEkstreAc === 'function') {
-                  window.bankaEkstreAc(bankaId, true); 
-              } else {
-                  document.getElementById('main-content').innerHTML = '<div class="alert alert-success mt-4">İşlem başarıyla silindi ve bakiyeler güncellendi. Lütfen Bankalar menüsüne dönün.</div>';
-              }
-          }, 300);
-      } catch(e) { alert("Hata: " + e.message); }
-  };
+  
 
   window.kurFarkiModalAc = function() {
       const select = document.getElementById('kf_cariId');
@@ -2111,13 +2097,14 @@ window.islemDuzenleAc = function(id) {
       try {
           if(isVirman) {
               let bankaFarki = anaYon === 'Tahsilat' ? tutar : -tutar;
-              let karsiFark = anaYon === 'Tahsilat' ? -karsiTutar : karsiTutar; // Döviz Karşılığı
+              let karsiYon = anaYon === 'Tahsilat' ? 'Odeme' : 'Tahsilat';
+              let karsiFark = karsiYon === 'Tahsilat' ? karsiTutar : -karsiTutar; 
               
               await addDoc(collection(db, "hesapHareketleri"), {
                   bankaId: bankaId, cariId: 'SISTEM_VIRMAN', tur: tur, yon: anaYon, tutar: tutar, aciklama: aciklama + ' (İşlem Yapan)', tarih: new Date(document.getElementById('i_tarih').value)
               });
               await addDoc(collection(db, "hesapHareketleri"), {
-                  bankaId: cariId, cariId: 'SISTEM_VIRMAN', tur: tur, yon: anaYon === 'Tahsilat' ? 'Odeme' : 'Tahsilat', tutar: karsiTutar, aciklama: aciklama + ' (Karşı Hesap)', tarih: new Date(document.getElementById('i_tarih').value)
+                  bankaId: cariId, cariId: 'SISTEM_VIRMAN', tur: tur, yon: karsiYon, tutar: karsiTutar, aciklama: aciklama + ' (Karşı Hesap)', tarih: new Date(document.getElementById('i_tarih').value)
               });
               
               await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(bankaFarki) });
@@ -3645,7 +3632,14 @@ window.islemDuzenleAc = function(id) {
                                 </div>
 
                                 <div class="mb-3">
-                                    <label class="form-label text-muted small fw-bold">İşlem Yönü / Türü</label>
+                                    <label class="form-label text-muted small fw-bold">Para Yönü (Bankadan)</label>
+                                    <select class="form-select border-danger fw-bold text-danger shadow-sm" id="hd_gercek_yon">
+                                        <option value="Tahsilat">GİRİŞ (+) Bankaya Para Girdi</option>
+                                        <option value="Odeme">ÇIKIŞ (-) Bankadan Para Çıktı</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label text-muted small fw-bold">İşlem Türü Kategorisi</label>
                                     <select class="form-select shadow-sm" id="hd_tur" onchange="window.hdTuruDegisti()">
                                         <option value="Tahsilat">Müşteriden Tahsilat (Giriş)</option>
                                         <option value="Odeme">Tedarikçiye Ödeme (Çıkış)</option>
