@@ -2997,7 +2997,7 @@ window.islemDuzenleAc = function(id) {
               <td class="text-danger fw-medium">${sgk.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td>
               <td class="fw-bold text-dark fs-6">${maliyet.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td>
               <td class="text-center">
-                  <button class="btn btn-sm btn-success py-0 me-1 shadow-sm" title="Maaş Öde" onclick="maasOdeAc('${p.adSoyad}', ${p.netMaas})"><i class="fas fa-money-bill-wave"></i> Maaş</button>
+                  <button class="btn btn-sm btn-success py-0 me-1 shadow-sm" title="Maaş Öde" onclick="maasOdeAc('${p.adSoyad}', ${maas}, ${sgk})"><i class="fas fa-money-bill-wave"></i> Maaş</button>
                   <button class="btn btn-sm btn-outline-primary py-0 me-1" title="Düzenle" onclick="personelDuzenleAc('${p.id}')"><i class="fas fa-edit"></i></button>
                   <button class="btn btn-sm btn-outline-danger py-0" title="Sil" onclick="personelSil('${p.id}')"><i class="fas fa-trash"></i></button>
               </td>
@@ -3015,7 +3015,7 @@ window.islemDuzenleAc = function(id) {
       document.getElementById('yeniPersonelForm').reset();
       document.getElementById('per_id').value = '';
       document.getElementById('per_durum').value = 'Aktif';
-      new bootstrap.Modal(document.getElementById('yeniPersonelModal')).show();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('yeniPersonelModal')).show();
   };
 
   window.personelDuzenleAc = function(id) {
@@ -3028,7 +3028,7 @@ window.islemDuzenleAc = function(id) {
       document.getElementById('per_maas').value = p.netMaas || 0;
       document.getElementById('per_sgk').value = p.sgkMaliyeti || 0;
       document.getElementById('per_durum').value = p.durum || 'Aktif';
-      new bootstrap.Modal(document.getElementById('yeniPersonelModal')).show();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('yeniPersonelModal')).show();
   };
 
   window.personelKaydet = async function() {
@@ -3049,7 +3049,7 @@ window.islemDuzenleAc = function(id) {
       try {
           if(id) await updateDoc(doc(db, "personel", id), data);
           else { data.islemTarihi = serverTimestamp(); await addDoc(collection(db, "personel"), data); }
-          bootstrap.Modal.getInstance(document.getElementById('yeniPersonelModal')).hide();
+          bootstrap.Modal.getOrCreateInstance(document.getElementById('yeniPersonelModal')).hide();
       } catch(e) { alert("Hata: " + e.message); }
   };
 
@@ -3058,9 +3058,10 @@ window.islemDuzenleAc = function(id) {
       try { await deleteDoc(doc(db, "personel", id)); } catch(e) { alert("Hata: " + e.message); }
   };
 
-  window.maasOdeAc = function(adSoyad, netMaas) {
+  window.maasOdeAc = function(adSoyad, netMaas, sgkMaliyeti) {
       document.getElementById('mo_per_ad').value = adSoyad;
       document.getElementById('mo_tutar').value = netMaas;
+      document.getElementById('mo_sgk_tutar').value = sgkMaliyeti || 0;
       document.getElementById('mo_tarih').value = new Date().toISOString().split('T')[0];
       
       let aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
@@ -3073,14 +3074,16 @@ window.islemDuzenleAc = function(id) {
       sec.innerHTML = '<option value="">-- Kasa veya Banka Seçin --</option>';
       bankaListesi.forEach(b => { sec.innerHTML += `<option value="${b.id}">${b.hesapAdi} (${b.paraBirimi})</option>`; });
       
-      new bootstrap.Modal(document.getElementById('maasOdeModal')).show();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('maasOdeModal')).show();
   };
 
   window.personelMaasOde = async function() {
       const bankaId = document.getElementById('mo_bankaId').value;
       const tutar = parseFloat(document.getElementById('mo_tutar').value) || 0;
+      const sgk = parseFloat(document.getElementById('mo_sgk_tutar').value) || 0;
       const tarih = document.getElementById('mo_tarih').value;
       const aciklama = document.getElementById('mo_aciklama').value;
+      const adSoyad = document.getElementById('mo_per_ad').value;
       
       if(!bankaId || tutar <= 0) { alert("Lütfen Kasa/Banka seçin ve geçerli bir tutar girin."); return; }
 
@@ -3088,7 +3091,7 @@ window.islemDuzenleAc = function(id) {
       btn.innerHTML = "Ödeniyor..."; btn.disabled = true;
 
       try {
-          // Bankadan parayı düş ve SISTEM_MAAS olarak kaydet
+          // 1. Bankadan parayı düş ve SISTEM_MAAS hesap hareketi oluştur
           await addDoc(collection(db, "hesapHareketleri"), {
               bankaId: bankaId, 
               cariId: "SISTEM_MAAS", 
@@ -3098,15 +3101,67 @@ window.islemDuzenleAc = function(id) {
               aciklama: aciklama, 
               tarih: new Date(tarih) 
           });
-
           await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(-tutar) });
 
-          bootstrap.Modal.getInstance(document.getElementById('maasOdeModal')).hide();
-          alert("Maaş ödemesi başarıyla kaydedildi ve banka bakiyesinden düşüldü.");
+          // 2. Dashboard Kar/Zarar (P&L) Raporu için MAAŞ GİDERİ Faturası (Fiş) oluştur
+          await addDoc(collection(db, "faturalar"), {
+              cariId: "SISTEM_MAAS", 
+              cariUnvan: "Personel Maaş Ödemesi", 
+              faturaNo: "BRD-" + Math.floor(Math.random() * 100000), 
+              tarih: tarih, 
+              tur: "Alim", 
+              paraBirimi: "TRY", 
+              tutar: tutar, 
+              kdvOran: 0, 
+              kdvTutar: 0, 
+              toplamTutar: tutar, 
+              aciklama: aciklama, 
+              kategori: "Maaş / SGK", 
+              durum: "Ödendi", 
+              islemTarihi: serverTimestamp() 
+          });
+
+          // 3. SGK Maliyeti varsa Vergi/SGK Tablosuna Tahakkuk Olarak Ekle ve P&L'ye Gider Yaz
+          if(sgk > 0) {
+              let dateObj = new Date(tarih);
+              let nextMonth = new Date(dateObj.getFullYear(), dateObj.getMonth() + 1, 26);
+              let sonTarihStr = nextMonth.toISOString().split('T')[0];
+              let donemStr = dateObj.getFullYear() + "-" + String(dateObj.getMonth() + 1).padStart(2, '0');
+
+              // Vergi listesine ekle
+              await addDoc(collection(db, "vergiler"), {
+                  tur: "SGK Primi / Muhtasar",
+                  donem: donemStr,
+                  sonTarih: sonTarihStr,
+                  tutar: sgk,
+                  durum: "Bekliyor",
+                  islemTarihi: serverTimestamp()
+              });
+
+              // P&L için SGK Gider Tahakkuku Faturası oluştur
+              await addDoc(collection(db, "faturalar"), {
+                  cariId: "SISTEM_VERGI", 
+                  cariUnvan: "SGK Tahakkuku", 
+                  faturaNo: "SGK-" + Math.floor(Math.random() * 100000), 
+                  tarih: tarih, 
+                  tur: "Alim", 
+                  paraBirimi: "TRY", 
+                  tutar: sgk, 
+                  kdvOran: 0, 
+                  kdvTutar: 0, 
+                  toplamTutar: sgk, 
+                  aciklama: `${adSoyad} SGK ve Vergi Maliyeti`, 
+                  kategori: "Maaş / SGK", 
+                  durum: "Bekliyor", 
+                  islemTarihi: serverTimestamp() 
+              });
+          }
+
+          bootstrap.Modal.getOrCreateInstance(document.getElementById('maasOdeModal')).hide();
+          alert("Maaş ödemesi başarıyla kaydedildi!\nNet Tutar bankadan düşüldü, SGK maliyeti 'Vergiler' takvimine ve Kâr/Zarar tablolarına Gider (Alım Faturası) olarak işlendi.");
       } catch(e) { alert("Hata: " + e.message); }
       finally { btn.innerHTML = "Ödemeyi Tamamla"; btn.disabled = false; }
   };
-
   // ---------------- RAPORLAMA VE AI ANALİZ İŞLEMLERİ ----------------
   window.raporUret = function() {
       let bas = document.getElementById('r_bas').value;
@@ -4397,6 +4452,7 @@ window.islemDuzenleAc = function(id) {
                                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                             </div>
                             <div class="modal-body p-4 bg-light">
+                                <input type="hidden" id="mo_sgk_tutar" value="0">
                                 <div class="mb-3">
                                     <label class="form-label text-muted small fw-bold">Personel</label>
                                     <input type="text" class="form-control bg-white fw-bold" id="mo_per_ad" readonly>
@@ -4419,7 +4475,7 @@ window.islemDuzenleAc = function(id) {
                                     <label class="form-label text-muted small fw-bold">İşlem Açıklaması</label>
                                     <input type="text" class="form-control" id="mo_aciklama">
                                 </div>
-                                <p class="text-muted small mb-0"><i class="fas fa-info-circle"></i> Bu tutar seçilen bankanın bakiyesinden düşülecek ve SISTEM_MAAS hesabı üzerinden kayıt altına alınacaktır.</p>
+                                <p class="text-muted small mb-0"><i class="fas fa-info-circle"></i> Ödeme tamamlandığında net tutar bankadan düşülür, SGK maliyeti vergi takvimine eklenir ve her iki tutar da Kâr/Zarar tablolarına Gider olarak yansır.</p>
                             </div>
                             <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button><button type="button" class="btn btn-success fw-bold" onclick="personelMaasOde()">Ödemeyi Tamamla</button></div>
                         </div>
