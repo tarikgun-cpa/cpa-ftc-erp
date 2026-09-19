@@ -156,6 +156,7 @@
   
   let proformaListesi = [];
   let panoNotlari = [];
+  let ozelKurallar = []; // YENİ: Otomatik eşleşme kuralları
   let cariDinleyici = null; 
   let faturaDinleyici = null; 
 
@@ -250,6 +251,13 @@
               else { panoNotlari = []; }
               if (document.getElementById('notlar_listesi')) { window.notListesiniCiz(); }
               if (typeof window.tickerGuncelle === 'function') { window.tickerGuncelle(); }
+          });
+
+          // ÖZEL EŞLEŞTİRME KURALLARINI DİNLE
+          onSnapshot(doc(db, "ayarlar", "kurallar"), (docSnap) => {
+              if (docSnap.exists() && docSnap.data().liste) { ozelKurallar = docSnap.data().liste; } 
+              else { ozelKurallar = []; }
+              if (document.getElementById('kurallar_listesi')) { window.kurallarListesiniCiz(); }
           });
 
           // AI SOHBET GEÇMİŞİNİ DİNLE
@@ -1854,6 +1862,83 @@ window.bankaEkstreAc = async function(bankaId, reRender = false, sadeceEslesmeye
       finally { btn.disabled = false; btn.innerHTML = "İşlemi Tamamla"; }
   };
 
+  // ---------------- ÖZEL EŞLEŞTİRME KURALLARI ----------------
+  window.kurallarModalAc = function() {
+      const select = document.getElementById('kural_hesap');
+      select.innerHTML = '<option value="">-- Eşleşecek Hesabı Seçin --</option>';
+      select.innerHTML += '<option value="SISTEM_MAAS" class="text-primary fw-bold">SİSTEM: Personel Maaşı / Avans</option>';
+      select.innerHTML += '<option value="SISTEM_VERGI" class="text-primary fw-bold">SİSTEM: Vergi / SGK Ödemesi</option>';
+      select.innerHTML += '<option value="SISTEM_BANKA" class="text-primary fw-bold">SİSTEM: Banka Masrafı / Komisyon</option>';
+      select.innerHTML += '<option value="SISTEM_FAIZ" class="text-primary fw-bold">SİSTEM: Faiz Geliri</option>';
+      select.innerHTML += '<option value="MUHTELIF_SATICI" class="text-primary fw-bold">SİSTEM: Fiş / Carisiz Harcama</option>';
+      
+      select.innerHTML += '<optgroup label="Cari Kartlar (Müşteri/Tedarikçi)">';
+      cariListesi.forEach(c => { select.innerHTML += `<option value="${c.id}">${c.unvan}</option>`; });
+      select.innerHTML += '</optgroup>';
+      
+      select.innerHTML += '<optgroup label="Bankalar / Kredi Kartları (Virman)">';
+      bankaListesi.forEach(b => { select.innerHTML += `<option value="BANKA_${b.id}">${b.hesapAdi}</option>`; });
+      select.innerHTML += '</optgroup>';
+
+      window.kurallarListesiniCiz();
+      new bootstrap.Modal(document.getElementById('kurallarModal')).show();
+  };
+
+  window.kurallarListesiniCiz = function() {
+      const tbody = document.getElementById('kurallar_listesi');
+      if(!tbody) return;
+      tbody.innerHTML = '';
+      if(typeof ozelKurallar === 'undefined' || ozelKurallar.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">Henüz özel kural eklenmemiş.</td></tr>';
+          return;
+      }
+      
+      ozelKurallar.forEach((k, index) => {
+          let hesapAdi = k.cariId;
+          if(k.cariId === 'SISTEM_MAAS') hesapAdi = '<span class="badge bg-primary">Personel Maaşı</span>';
+          else if(k.cariId === 'SISTEM_VERGI') hesapAdi = '<span class="badge bg-danger">Vergi / SGK</span>';
+          else if(k.cariId === 'SISTEM_BANKA') hesapAdi = '<span class="badge bg-secondary">Banka Masrafı</span>';
+          else if(k.cariId === 'SISTEM_FAIZ') hesapAdi = '<span class="badge bg-success">Faiz Geliri</span>';
+          else if(k.cariId === 'MUHTELIF_SATICI') hesapAdi = '<span class="badge bg-info text-dark">Fiş Harcaması</span>';
+          else if(k.cariId.startsWith('BANKA_')) {
+              let b = bankaListesi.find(x => x.id === k.cariId.replace('BANKA_', ''));
+              if(b) hesapAdi = 'Banka: ' + b.hesapAdi;
+          } else {
+              let c = cariListesi.find(x => x.id === k.cariId);
+              if(c) hesapAdi = 'Cari: ' + c.unvan;
+          }
+
+          tbody.innerHTML += `<tr>
+              <td class="fw-bold text-danger">"${k.kelime}"</td>
+              <td><span class="badge bg-light text-dark border">${k.islemTuru}</span></td>
+              <td>${hesapAdi}</td>
+              <td class="text-end"><button class="btn btn-sm btn-outline-danger py-0" onclick="kuralSil(${index})"><i class="fas fa-trash"></i></button></td>
+          </tr>`;
+      });
+  };
+
+  window.yeniKuralEkle = async function() {
+      let kelime = document.getElementById('kural_kelime').value.trim();
+      let islemTuru = document.getElementById('kural_tur').value;
+      let cariId = document.getElementById('kural_hesap').value;
+      
+      if(kelime === "" || cariId === "") { alert("Lütfen aranan kelimeyi ve hedef hesabı seçin."); return; }
+      
+      let yeniListe = [...(typeof ozelKurallar !== 'undefined' ? ozelKurallar : []), { kelime, islemTuru, cariId }];
+      try {
+          await setDoc(doc(db, "ayarlar", "kurallar"), { liste: yeniListe });
+          document.getElementById('kural_kelime').value = '';
+      } catch (e) { alert("Hata: " + e.message); }
+  };
+
+  window.kuralSil = async function(index) {
+      let yeniListe = [...ozelKurallar];
+      yeniListe.splice(index, 1);
+      try {
+          await setDoc(doc(db, "ayarlar", "kurallar"), { liste: yeniListe });
+      } catch (e) { alert("Hata: " + e.message); }
+  };
+
   // ---------------- BANKA EXCEL YÜKLEME VE EŞLEŞTİRME ----------------
   let excelOkunanHareketler = [];
 
@@ -1972,11 +2057,7 @@ window.bankaEkstreAc = async function(bankaId, reRender = false, sadeceEslesmeye
                           .replace(/[^a-z0-9\s]/g, ''); 
                   };
 
-                  let aciklamaNorm = normalizeString(aciklama);
-                  let aciklamaKelimeleri = aciklamaNorm.split(' ').filter(w => w.length > 2);
-                  let tipNorm = normalizeString(hareketTipi);
-
-                  // 1. ADIM: BANKA VE KARTLARA BAK (VİRMAN İÇİN)
+                  
                   let bankaYasakli = ['kredi', 'karti', 'hesabi', 'sirket', 'sirketi', 'sirketim', 'tl', 'usd', 'eur', 'bankasi', 'bank'];
                   for (let b of bankaListesi) {
                       if (b.id !== bankaId) {
@@ -3044,8 +3125,11 @@ window.bankaEkstreAc = async function(bankaId, reRender = false, sadeceEslesmeye
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h2>Banka ve Kasa Hesapları</h2>
                     <div>
+                        <button class="btn btn-warning text-dark shadow-sm me-2 fw-bold" onclick="kurallarModalAc()">
+                            <i class="fas fa-magic"></i> Eşleşme Kuralları
+                        </button>
                         <button class="btn btn-success text-white shadow-sm me-2" onclick="bankaExcelModalAc()">
-                            <i class="fas fa-file-excel"></i> Enpara Ekstre Yükle
+                            <i class="fas fa-file-excel"></i> Ekstre Yükle
                         </button>
                         <button class="btn btn-info text-white shadow-sm me-2" onclick="kurFarkiModalAc()">
                             <i class="fas fa-exchange-alt"></i> Kur Farkı İşle
@@ -3053,6 +3137,58 @@ window.bankaEkstreAc = async function(bankaId, reRender = false, sadeceEslesmeye
                         <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#yeniBankaModal">
                             <i class="fas fa-plus"></i> Yeni Hesap Ekle
                         </button>
+                    </div>
+                </div>
+
+                <!-- EŞLEŞME KURALLARI MODALI -->
+                <div class="modal fade d-print-none" id="kurallarModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content border-0 shadow-lg">
+                            <div class="modal-header bg-warning text-dark">
+                                <h5 class="modal-title fw-bold"><i class="fas fa-magic me-2"></i>Otomatik Eşleştirme Kuralları</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body bg-light p-4">
+                                <div class="row mb-4 align-items-end">
+                                    <div class="col-md-3">
+                                        <label class="small text-muted fw-bold">Açıklamada Geçen Kelime</label>
+                                        <input type="text" id="kural_kelime" class="form-control shadow-sm border-warning" placeholder="Örn: maaş, kira">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="small text-muted fw-bold">İşlem Türü</label>
+                                        <select class="form-select shadow-sm border-warning" id="kural_tur">
+                                            <option value="Tahsilat">Müşteriden Tahsilat</option>
+                                            <option value="Odeme">Tedarikçiye Ödeme</option>
+                                            <option value="Maas">Maaş Ödemesi</option>
+                                            <option value="Vergi_SGK">Vergi / SGK</option>
+                                            <option value="Banka_Gider">Banka Masrafı/Komisyon</option>
+                                            <option value="Faiz_Gelir">Faiz Geliri</option>
+                                            <option value="Virman">Banka/Kasa Virman</option>
+                                            <option value="Kredi_Karti_Odeme">Kredi Kartı Ödemesi</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="small text-muted fw-bold">Atanacak Hedef Hesap</label>
+                                        <select class="form-select shadow-sm border-warning" id="kural_hesap"></select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button class="btn btn-dark w-100 fw-bold shadow-sm" onclick="window.yeniKuralEkle()"><i class="fas fa-plus"></i> Ekle</button>
+                                    </div>
+                                </div>
+                                <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">Aktif Kurallarınız</h6>
+                                <div class="table-responsive bg-white rounded border shadow-sm" style="max-height: 300px; overflow-y:auto;">
+                                    <table class="table table-sm table-hover mb-0 align-middle">
+                                        <thead class="table-light sticky-top">
+                                            <tr><th>Aranan Kelime</th><th>Atanacak Tür</th><th>Hedef Hesap</th><th class="text-end">Sil</th></tr>
+                                        </thead>
+                                        <tbody id="kurallar_listesi"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
