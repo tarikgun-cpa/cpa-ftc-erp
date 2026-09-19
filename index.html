@@ -1475,11 +1475,6 @@
 window.islemDuzenleAc = function(id) {
       const islem = islemListesi.find(i => i.id === id);
       if(!islem) return;
-      
-      if (islem.cariId === 'SISTEM_VIRMAN' || islem.aciklama.includes('(İşlem Yapan)') || islem.aciklama.includes('(Karşı Hesap)')) {
-          alert("Virman ve Kredi Kartı transfer işlemleri doğası gereği çifttir. Lütfen işlemi doğrudan Çöp Kutusu ikonundan silip, Ana Ekrandan tekrar ekleyin.");
-          return;
-      }
 
       document.getElementById('hd_islemId').value = id;
       document.getElementById('hd_bankaId').value = islem.bankaId;
@@ -1545,9 +1540,9 @@ window.islemDuzenleAc = function(id) {
           let islemTarihi = islem.tarih ? new Date(islem.tarih.seconds * 1000) : new Date();
           let yeniYon = eskiYon; // Yön excelden geldiği gibi sabit kalır
 
-          // 2. YENİ TUTARLARI VE YENİ YÖNÜ UYGULA
+          // 2. YENİ CARİ VE BANKA BAKİYESİNİ UYGULA
           let isNewVirman = yeniCariId.startsWith('BANKA_');
-          if (isNewVirman) {
+          if (isNewVirman || yeniTur === 'Doviz_Alim_Satis' || yeniTur === 'Virman') {
               let karsiBankaId = yeniCariId.replace('BANKA_', '');
               let karsiYon = yeniYon === 'Tahsilat' ? 'Odeme' : 'Tahsilat';
               
@@ -1862,17 +1857,13 @@ window.islemDuzenleAc = function(id) {
       const islem = islemListesi.find(i => i.id === id);
       if(!islem) return;
       
-      if (islem.cariId === 'SISTEM_VIRMAN' || islem.aciklama.includes('(İşlem Yapan)') || islem.aciklama.includes('(Karşı Hesap)')) {
-          alert("Virman ve Kredi Kartı transfer işlemleri doğası gereği çifttir. Lütfen işlemi doğrudan Çöp Kutusu ikonundan silip, Ana Ekrandan tekrar ekleyin.");
-          return;
-      }
+      // VİRMAN KİLİDİ KALDIRILDI! Artık her işlem düzenlenebilir.
 
       document.getElementById('hd_islemId').value = id;
       document.getElementById('hd_bankaId').value = islem.bankaId;
       document.getElementById('hd_eskiCari').value = islem.cariId;
       document.getElementById('hd_eskiTur').value = islem.tur;
       
-      // Kilitli HTML Kodunu Zorla Aç ve Tutarı Yaz (Türkçe Virgül Sistemine Uygun)
       let tutarInput = document.getElementById('hd_tutar_gosterim');
       tutarInput.removeAttribute('readonly');
       tutarInput.removeAttribute('disabled');
@@ -1881,8 +1872,16 @@ window.islemDuzenleAc = function(id) {
       let gercekYon = islem.yon ? islem.yon : (['Tahsilat', 'Faiz_Gelir'].includes(islem.tur) ? 'Tahsilat' : 'Odeme');
       tutarInput.setAttribute('data-eski-yon', gercekYon);
       
+      if(document.getElementById('hd_gercek_yon')) {
+          document.getElementById('hd_gercek_yon').value = gercekYon;
+      }
+      
       document.getElementById('hd_tutar').value = islem.tutar;
       tutarInput.value = islem.tutar.toString().replace('.', ',');
+      
+      if(document.getElementById('hd_karsi_tutar')) {
+          document.getElementById('hd_karsi_tutar').value = ''; 
+      }
       
       document.getElementById('hd_tur').value = islem.tur;
       window.hdTuruDegisti();
@@ -1890,7 +1889,6 @@ window.islemDuzenleAc = function(id) {
       
       bootstrap.Modal.getOrCreateInstance(document.getElementById('islemDuzenleModal')).show();
   };
-
   window.hdTuruDegisti = function() {
       const tur = document.getElementById('hd_tur').value;
       const bankaId = document.getElementById('hd_bankaId').value;
@@ -2110,6 +2108,7 @@ window.islemDuzenleAc = function(id) {
               await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(bankaFarki) });
               await updateDoc(doc(db, "bankalar", cariId), { bakiye: increment(karsiFark) });
           } else {
+
               await addDoc(collection(db, "hesapHareketleri"), {
                   bankaId: bankaId, cariId: cariId, tur: tur, yon: anaYon, tutar: tutar, aciklama: aciklama,
                   tarih: new Date(document.getElementById('i_tarih').value)
