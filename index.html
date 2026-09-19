@@ -1559,9 +1559,18 @@ window.islemDuzenleAc = function(id) {
       document.getElementById('hd_eskiCari').value = islem.cariId;
       document.getElementById('hd_eskiTur').value = islem.tur;
       
-      // Eski tutarı referans olarak gizli inputa, değiştirilebilir olarak ekrana alıyoruz
+      // Kilitli HTML Kodunu Zorla Aç ve Tutarı Yaz
+      let tutarInput = document.getElementById('hd_tutar_gosterim');
+      tutarInput.removeAttribute('readonly');
+      tutarInput.removeAttribute('disabled');
+      tutarInput.type = 'number';
+      tutarInput.step = '0.01';
+      
+      let gercekYon = islem.yon ? islem.yon : (['Tahsilat', 'Faiz_Gelir'].includes(islem.tur) ? 'Tahsilat' : 'Odeme');
+      tutarInput.setAttribute('data-eski-yon', gercekYon);
+      
       document.getElementById('hd_tutar').value = islem.tutar;
-      document.getElementById('hd_tutar_gosterim').value = islem.tutar;
+      tutarInput.value = islem.tutar;
       
       document.getElementById('hd_tur').value = islem.tur;
       window.hdTuruDegisti();
@@ -1601,67 +1610,58 @@ window.islemDuzenleAc = function(id) {
       const eskiCariId = document.getElementById('hd_eskiCari').value;
       const eskiTur = document.getElementById('hd_eskiTur').value;
       const eskiTutar = parseFloat(document.getElementById('hd_tutar').value);
+      const eskiYon = document.getElementById('hd_tutar_gosterim').getAttribute('data-eski-yon');
       
       const yeniTur = document.getElementById('hd_tur').value;
       const yeniCariId = document.getElementById('hd_cariId').value;
       const yeniTutar = parseFloat(document.getElementById('hd_tutar_gosterim').value);
 
-      if(isNaN(yeniTutar) || yeniTutar <= 0) {
-          alert("Lütfen geçerli bir işlem tutarı girin.");
-          return;
-      }
+      if(isNaN(yeniTutar) || yeniTutar <= 0) { alert("Lütfen geçerli bir işlem tutarı girin."); return; }
       if(!yeniCariId) { alert("Lütfen bir eşleştirme seçin!"); return; }
-      if(eskiCariId === yeniCariId && eskiTur === yeniTur && eskiTutar === yeniTutar) {
-          bootstrap.Modal.getInstance(document.getElementById('islemDuzenleModal')).hide();
-          return;
-      }
 
       const btn = document.getElementById('btn_duzenle_kaydet');
       btn.disabled = true; btn.innerHTML = 'İşleniyor...';
 
       try {
-          // 1. ESKİ CARİ VE ESKİ BANKA BAKİYESİNİ GERİ AL (REVERT)
+          // 1. ESKİ CARİ VE BANKA BAKİYESİNİ GERİ AL
           let isOldSistem = eskiCariId.startsWith('SISTEM_') || eskiCariId === 'MUHTELIF_SATICI' || eskiCariId === 'VERGI_DAIRESI';
           if(!isOldSistem) {
-              const eskiCariIade = eskiTur === 'Tahsilat' ? eskiTutar : -eskiTutar; 
+              const eskiCariIade = eskiYon === 'Tahsilat' ? eskiTutar : -eskiTutar; 
               await updateDoc(doc(db, "cariler", eskiCariId), { bakiye: increment(eskiCariIade) });
           }
-          const eskiBankaIade = eskiTur === 'Tahsilat' ? -eskiTutar : eskiTutar;
+          const eskiBankaIade = eskiYon === 'Tahsilat' ? -eskiTutar : eskiTutar;
           await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(eskiBankaIade) });
 
           const islem = islemListesi.find(i => i.id === islemId);
           let islemTarihi = islem.tarih ? new Date(islem.tarih.seconds * 1000) : new Date();
+          let yeniYon = (['Tahsilat', 'Faiz_Gelir'].includes(yeniTur)) ? 'Tahsilat' : 'Odeme';
 
-          // 2. YENİ CARİ VE YENİ BANKA BAKİYESİNİ UYGULA
+          // 2. YENİ CARİ VE BANKA BAKİYESİNİ UYGULA
           let isNewVirman = yeniCariId.startsWith('BANKA_');
           if (isNewVirman) {
               let karsiBankaId = yeniCariId.replace('BANKA_', '');
-              
               await updateDoc(doc(db, "hesapHareketleri", islemId), {
-                  cariId: 'SISTEM_VIRMAN', tur: yeniTur, tutar: yeniTutar, aciklama: islem.aciklama + ' (Eşleştirildi)'
+                  cariId: 'SISTEM_VIRMAN', tur: yeniTur, tutar: yeniTutar, yon: yeniYon, aciklama: islem.aciklama + ' (Eşleştirildi)'
               });
               await addDoc(collection(db, "hesapHareketleri"), {
-                  bankaId: karsiBankaId, cariId: 'SISTEM_VIRMAN', 
-                  tur: yeniTur === 'Tahsilat' ? 'Odeme' : 'Tahsilat', 
-                  tutar: yeniTutar, aciklama: islem.aciklama + ' (Karşı Hesap)', tarih: islemTarihi
+                  bankaId: karsiBankaId, cariId: 'SISTEM_VIRMAN', tur: yeniTur === 'Tahsilat' ? 'Odeme' : 'Tahsilat', yon: yeniTur === 'Tahsilat' ? 'Odeme' : 'Tahsilat', tutar: yeniTutar, aciklama: islem.aciklama + ' (Karşı Hesap)', tarih: islemTarihi
               });
               
               let karsiFark = yeniTur === 'Tahsilat' ? -yeniTutar : yeniTutar;
               await updateDoc(doc(db, "bankalar", karsiBankaId), { bakiye: increment(karsiFark) });
           } else {
               await updateDoc(doc(db, "hesapHareketleri", islemId), {
-                  cariId: yeniCariId, tur: yeniTur, tutar: yeniTutar
+                  cariId: yeniCariId, tur: yeniTur, tutar: yeniTutar, yon: yeniYon
               });
               
               let isNewSistem = yeniCariId.startsWith('SISTEM_') || yeniCariId === 'MUHTELIF_SATICI' || yeniCariId === 'VERGI_DAIRESI';
               if(!isNewSistem) {
-                  const yeniCariEtki = yeniTur === 'Tahsilat' ? -yeniTutar : yeniTutar;
+                  const yeniCariEtki = yeniYon === 'Tahsilat' ? -yeniTutar : yeniTutar;
                   await updateDoc(doc(db, "cariler", yeniCariId), { bakiye: increment(yeniCariEtki) });
               }
           }
 
-          // YENİ BANKA BAKİYESİNİ UYGULA
-          const yeniBankaEtki = yeniTur === 'Tahsilat' ? yeniTutar : -yeniTutar;
+          const yeniBankaEtki = yeniYon === 'Tahsilat' ? yeniTutar : -yeniTutar;
           await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(yeniBankaEtki) });
 
           bootstrap.Modal.getInstance(document.getElementById('islemDuzenleModal')).hide();
@@ -1728,7 +1728,10 @@ window.islemDuzenleAc = function(id) {
       
       if(!reRender && !sadeceEslesmeyenler) {
           let hesaplananBankaBakiye = 0;
-          tamHareketler.forEach(h => { hesaplananBankaBakiye += (h.tur === 'Tahsilat' ? h.tutar : -h.tutar); });
+          tamHareketler.forEach(h => { 
+              let gercekYon = h.yon ? h.yon : (['Tahsilat', 'Faiz_Gelir'].includes(h.tur) ? 'Tahsilat' : 'Odeme');
+              hesaplananBankaBakiye += (gercekYon === 'Tahsilat' ? h.tutar : -h.tutar); 
+          });
           hesaplananBankaBakiye = parseFloat(hesaplananBankaBakiye.toFixed(2));
           let mevcutBankaBakiye = parseFloat((banka.bakiye || 0).toFixed(2));
 
@@ -1770,7 +1773,9 @@ window.islemDuzenleAc = function(id) {
           let filtrelenenKayitSayisi = 0;
 
           tamHareketler.forEach(h => {
-              let islemTutari = h.tur === 'Tahsilat' ? h.tutar : -h.tutar;
+              // YENİ: Yönü Kesin Olarak Belirle (Boş tutar hatasını engeller)
+              let gercekYon = h.yon ? h.yon : (['Tahsilat', 'Faiz_Gelir'].includes(h.tur) ? 'Tahsilat' : 'Odeme');
+              let islemTutari = gercekYon === 'Tahsilat' ? h.tutar : -h.tutar;
               yuruyenBakiye += islemTutari; 
 
               if(basTarih && h.tarihStr < basTarih) return;
@@ -1786,13 +1791,15 @@ window.islemDuzenleAc = function(id) {
                           : (cariListesi.find(c => c.id === h.cariId)?.unvan || 'Diğer Sistem İşlemi')));
               
               let girisStr = '-'; let cikisStr = '-';
-              if(h.tur === 'Tahsilat') { girisStr = `${h.tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${birim}`; toplamGiris += h.tutar; }
-              else if(h.tur === 'Odeme') { cikisStr = `${h.tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${birim}`; toplamCikis += h.tutar; }
+              if(gercekYon === 'Tahsilat') { girisStr = `${h.tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${birim}`; toplamGiris += h.tutar; }
+              else { cikisStr = `${h.tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${birim}`; toplamCikis += h.tutar; }
               
               let aksiyonButonlari = `
                   <button class="btn btn-sm btn-outline-primary py-0 me-1" onclick="islemDuzenleAc('${h.id}')" title="İşlemi Değiştir / Eşleştir"><i class="fas fa-edit"></i> Değiştir</button>
                   <button class="btn btn-sm btn-outline-danger py-0" onclick="islemSil('${h.id}', '${h.cariId}', '${h.bankaId}', '${h.tur}', ${h.tutar})" title="İşlemi İptal Et"><i class="fas fa-trash"></i></button>
               `;
+              
+              let rowColor = gercekYon === 'Tahsilat' ? 'text-success' : 'text-danger';
               
               html += `<tr><td class="small">${d}</td><td class="small text-muted">${h.tur}</td><td class="small">${cariAdi}</td><td class="small">${h.aciklama}</td><td class="text-end fw-medium text-success">${girisStr}</td><td class="text-end fw-medium text-danger">${cikisStr}</td><td class="text-end fw-bold text-primary">${yuruyenBakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${birim}</td><td class="d-print-none text-center">${aksiyonButonlari}</td></tr>`;
           });
@@ -2376,10 +2383,10 @@ window.islemDuzenleAc = function(id) {
                   let karsiFark = gercekYon === 'Tahsilat' ? -h.tutar : h.tutar;
                   
                   await addDoc(collection(db, "hesapHareketleri"), {
-                      bankaId: h.bankaId, cariId: 'SISTEM_VIRMAN', tur: gercekYon, tutar: h.tutar, aciklama: h.aciklama + ' (İşlem Yapan)', tarih: new Date(h.tarih)
+                      bankaId: h.bankaId, cariId: 'SISTEM_VIRMAN', tur: islemTuru, yon: gercekYon, tutar: h.tutar, aciklama: h.aciklama + ' (İşlem Yapan)', tarih: new Date(h.tarih)
                   });
                   await addDoc(collection(db, "hesapHareketleri"), {
-                      bankaId: karsiBankaId, cariId: 'SISTEM_VIRMAN', tur: gercekYon === 'Tahsilat' ? 'Odeme' : 'Tahsilat', tutar: h.tutar, aciklama: h.aciklama + ' (Karşı Hesap)', tarih: new Date(h.tarih)
+                      bankaId: karsiBankaId, cariId: 'SISTEM_VIRMAN', tur: islemTuru === 'Tahsilat' ? 'Odeme' : 'Tahsilat', yon: gercekYon === 'Tahsilat' ? 'Odeme' : 'Tahsilat', tutar: h.tutar, aciklama: h.aciklama + ' (Karşı Hesap)', tarih: new Date(h.tarih)
                   });
                   
                   await updateDoc(doc(db, "bankalar", h.bankaId), { bakiye: increment(bankaFarki) });
@@ -2388,7 +2395,7 @@ window.islemDuzenleAc = function(id) {
               } else {
                   // NORMAL CARİ VEYA SİSTEMSEL VEYA EŞLEŞMEYENLER
                   await addDoc(collection(db, "hesapHareketleri"), {
-                      bankaId: h.bankaId, cariId: secimId, tur: islemTuru, tutar: h.tutar, aciklama: h.aciklama, tarih: new Date(h.tarih) 
+                      bankaId: h.bankaId, cariId: secimId, tur: islemTuru, yon: gercekYon, tutar: h.tutar, aciklama: h.aciklama, tarih: new Date(h.tarih) 
                   });
 
                   // Cari Bakiyesini Güncelle
