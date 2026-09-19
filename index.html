@@ -870,9 +870,12 @@
       const iTbody = document.getElementById('ihracatTabloGövdesi');
       const yTbody = document.getElementById('yerelSatisTabloGövdesi');
       const aTbody = document.getElementById('alimTabloGövdesi');
+      const smmTbody = document.getElementById('smmTabloGövdesi');
       const pTbody = document.getElementById('proformaTabloGövdesi');
+      
       if (!iTbody || !yTbody || !aTbody) return; 
       iTbody.innerHTML = ""; yTbody.innerHTML = ""; aTbody.innerHTML = "";
+      if(smmTbody) smmTbody.innerHTML = "";
       
       faturaListesi.forEach(fatura => {
           let sembol = fatura.paraBirimi === 'USD' ? '$' : (fatura.paraBirimi === 'TRY' ? '₺' : '€');
@@ -880,16 +883,33 @@
           let krt = fatura.kategori ? `<span class="badge bg-light text-dark border ms-1" style="font-size:10px;">${fatura.kategori}</span>` : '';
           let aciklamaT = fatura.aciklama ? `<span class="small text-muted">${fatura.aciklama}</span> ${krt}` : krt;
           
-          let html = `<tr>
+          let stopajGosterim = fatura.stopajTutar && fatura.stopajTutar > 0 ? `<td class="text-danger">-${fatura.stopajTutar.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ${sembol}</td>` : '';
+
+          let html = '';
+          if(fatura.tur === 'SMM_Gider') {
+              html = `<tr>
+                  <td>${fatura.faturaNo}</td><td>${fatura.tarih}</td><td><span class="text-truncate d-inline-block" style="max-width: 150px;">${fatura.cariUnvan}</span></td>
+                  <td>${aciklamaT}</td>
+                  <td>${fatura.tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${sembol}</td>
+                  ${stopajGosterim || '<td>-</td>'}
+                  <td>${fatura.kdvTutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${sembol}</td>
+                  <td class="fw-bold text-dark text-end">${fatura.toplamTutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${sembol}</td><td>${islemButonlari}</td></tr>`;
+              if(smmTbody) smmTbody.innerHTML += html;
+          } else {
+              html = `<tr>
                   <td>${fatura.faturaNo}</td><td>${fatura.tarih}</td><td><span class="text-truncate d-inline-block" style="max-width: 150px;">${fatura.cariUnvan}</span></td>
                   <td>${aciklamaT}</td>
                   <td>${fatura.tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${sembol}</td><td>${fatura.kdvTutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${sembol}</td>
                   <td class="fw-bold text-dark text-end">${fatura.toplamTutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${sembol}</td><td>${islemButonlari}</td></tr>`;
-
-          if(fatura.tur === 'Ihracat' || fatura.tur === 'Satis') iTbody.innerHTML += html; 
-          else if(fatura.tur === 'YerelSatis') yTbody.innerHTML += html; 
-          else aTbody.innerHTML += html;
+              if(fatura.tur === 'Ihracat' || fatura.tur === 'Satis') iTbody.innerHTML += html; 
+              else if(fatura.tur === 'YerelSatis') yTbody.innerHTML += html; 
+              else aTbody.innerHTML += html;
+          }
       });
+      if(iTbody.innerHTML === '') iTbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Kayıtlı hizmet ihracatı faturası yok.</td></tr>';
+      if(yTbody.innerHTML === '') yTbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Kayıtlı yerel satış faturası yok.</td></tr>';
+      if(aTbody.innerHTML === '') aTbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Kayıtlı alım faturası yok.</td></tr>';
+      if(smmTbody && smmTbody.innerHTML === '') smmTbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">Kayıtlı Serbest Meslek Makbuzu bulunmuyor.</td></tr>';
       if(iTbody.innerHTML === '') iTbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Kayıtlı hizmet ihracatı faturası yok.</td></tr>';
       if(yTbody.innerHTML === '') yTbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Kayıtlı yerel satış faturası yok.</td></tr>';
       if(aTbody.innerHTML === '') aTbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Kayıtlı alım faturası yok.</td></tr>';
@@ -1290,9 +1310,87 @@
   };
 
   window.hesaplaKdv = function() {
-      const tutar = parseFloat(document.getElementById('f_tutar').value) || 0; const oran = parseFloat(document.getElementById('f_kdvOran').value) || 0;
-      const kdvTutar = tutar * (oran / 100); const toplam = tutar + kdvTutar;
-      document.getElementById('f_kdvTutar').value = kdvTutar.toFixed(2); document.getElementById('f_toplam').value = toplam.toFixed(2);
+      const tutar = parseFloat(document.getElementById('f_tutar').value) || 0; 
+      const kdvOran = parseFloat(document.getElementById('f_kdvOran').value) || 0;
+      
+      let stopajKutusu = document.getElementById('f_stopajOran');
+      const stopajOran = stopajKutusu ? parseFloat(stopajKutusu.value) || 0 : 0;
+      
+      const kdvTutar = tutar * (kdvOran / 100); 
+      const stopajTutar = tutar * (stopajOran / 100);
+      
+      // SMM iskeletinde net ödenen: Brüt - Stopaj + KDV
+      const toplam = (tutar - stopajTutar) + kdvTutar;
+      
+      document.getElementById('f_kdvTutar').value = kdvTutar.toFixed(2); 
+      if(document.getElementById('f_stopajTutar')) { document.getElementById('f_stopajTutar').value = stopajTutar.toFixed(2); }
+      document.getElementById('f_toplam').value = toplam.toFixed(2);
+  };
+  
+  window.faturaDuzenleAc = function(id) {
+      const f = faturaListesi.find(x => x.id === id);
+      const cariSelect = document.getElementById('f_cariId');
+      cariSelect.innerHTML = '<option value="">-- Cari Seçiniz --</option>';
+      cariSelect.innerHTML += `<option value="MUHTELIF_SATICI" class="fw-bold text-primary" ${f.cariId === 'MUHTELIF_SATICI' ? 'selected' : ''}>-- CARİSİZ İŞLEM (Muhtelif Satıcı / Fiş) --</option>`;
+      cariListesi.forEach(c => { cariSelect.innerHTML += `<option value="${c.id}" ${c.id === f.cariId ? 'selected' : ''}>${c.unvan} (${c.grup === 'Alici' ? 'Müşteri' : (c.grup === 'Satici' ? 'Tedarikçi' : 'Ortak')})</option>`; });
+
+      document.getElementById('f_id').value = f.id; 
+      document.getElementById('f_tur').value = f.tur; 
+      document.getElementById('f_paraBirimi').value = f.paraBirimi || 'EUR';
+      document.getElementById('f_faturaNo').value = f.faturaNo || ''; 
+      document.getElementById('f_tarih').value = f.tarih; 
+      document.getElementById('f_aciklama').value = f.aciklama || '';
+      
+      window.kategorileriDoldur(); 
+      if(typeof window.fisSecimiKontrol === 'function') window.fisSecimiKontrol();
+      document.getElementById('f_kategori').value = f.kategori || '';
+      
+      document.getElementById('f_tutar').value = f.tutar; 
+      document.getElementById('f_kdvOran').value = f.kdvOran;
+      if(document.getElementById('f_stopajOran')) { document.getElementById('f_stopajOran').value = f.stopajOran || 0; }
+      
+      window.hesaplaKdv();
+      document.querySelector("#yeniFaturaModal .modal-title").innerHTML = "Fatura Düzenle";
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('yeniFaturaModal')).show();
+  };
+
+  window.faturaKopyalaAc = function(id) {
+      const f = faturaListesi.find(x => x.id === id);
+      const cariSelect = document.getElementById('f_cariId');
+      cariSelect.innerHTML = '<option value="">-- Cari Seçiniz --</option>';
+      cariSelect.innerHTML += `<option value="MUHTELIF_SATICI" class="fw-bold text-primary" ${f.cariId === 'MUHTELIF_SATICI' ? 'selected' : ''}>-- CARİSİZ İŞLEM (Muhtelif Satıcı / Fiş) --</option>`;
+      cariListesi.forEach(c => { cariSelect.innerHTML += `<option value="${c.id}" ${c.id === f.cariId ? 'selected' : ''}>${c.unvan} (${c.grup === 'Alici' ? 'Müşteri' : (c.grup === 'Satici' ? 'Tedarikçi' : 'Ortak')})</option>`; });
+
+      document.getElementById('f_id').value = ''; 
+      document.getElementById('f_tur').value = f.tur; 
+      document.getElementById('f_paraBirimi').value = f.paraBirimi || 'EUR';
+      document.getElementById('f_faturaNo').value = ''; 
+      document.getElementById('f_tarih').value = new Date().toISOString().split('T')[0]; 
+      document.getElementById('f_aciklama').value = f.aciklama || '';
+      
+      window.kategorileriDoldur();
+      if(typeof window.fisSecimiKontrol === 'function') window.fisSecimiKontrol();
+      document.getElementById('f_kategori').value = f.kategori || '';
+      
+      document.getElementById('f_tutar').value = f.tutar; 
+      document.getElementById('f_kdvOran').value = f.kdvOran;
+      if(document.getElementById('f_stopajOran')) { document.getElementById('f_stopajOran').value = f.stopajOran || 0; }
+      
+      window.hesaplaKdv();
+      document.querySelector("#yeniFaturaModal .modal-title").innerHTML = "<i class='fas fa-copy me-2'></i>Fatura Çoğalt (Taslak)";
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('yeniFaturaModal')).show();
+  };
+
+  window.faturaSil = async function(faturaId, cariId, tur, toplamTutar) {
+      if(!confirm("Bu faturayı silmek istediğinize emin misiniz? Cari bakiye otomatik olarak geri alınacaktır.")) return;
+      try {
+          let tutar = Math.abs(parseFloat(toplamTutar)); 
+          await deleteDoc(doc(db, "faturalar", faturaId));
+          if(cariId !== 'MUHTELIF_SATICI' && tur !== 'Fis_OKC') {
+              const bakiyeDegisimi = (tur === 'Satis' || tur === 'Ihracat' || tur === 'YerelSatis') ? -tutar : tutar;
+              await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(bakiyeDegisimi) });
+          }
+      } catch(e) { alert("Hata: " + e.message); }
   };
 
   window.faturaKaydet = async function() {
@@ -1306,12 +1404,19 @@
       if(tur === 'Fis_OKC' && faturaNo.trim() === '') { faturaNo = 'FIS-' + Math.floor(Math.random() * 100000); }
       
       const tarih = document.getElementById('f_tarih').value;
-      const tutar = parseFloat(document.getElementById('f_tutar').value) || 0; const kdvOran = parseFloat(document.getElementById('f_kdvOran').value) || 0;
-      const kdvTutar = parseFloat(document.getElementById('f_kdvTutar').value) || 0; const toplamTutar = parseFloat(document.getElementById('f_toplam').value) || 0;
+      const tutar = parseFloat(document.getElementById('f_tutar').value) || 0; 
+      const kdvOran = parseFloat(document.getElementById('f_kdvOran').value) || 0;
+      const stopajOran = document.getElementById('f_stopajOran') ? (parseFloat(document.getElementById('f_stopajOran').value) || 0) : 0;
+      
+      const kdvTutar = parseFloat(document.getElementById('f_kdvTutar').value) || 0; 
+      const stopajTutar = document.getElementById('f_stopajTutar') ? (parseFloat(document.getElementById('f_stopajTutar').value) || 0) : 0;
+      const toplamTutar = parseFloat(document.getElementById('f_toplam').value) || 0;
+      
       const aciklama = document.getElementById('f_aciklama').value || '';
       
       let isSatis = (tur === 'Satis' || tur === 'Ihracat' || tur === 'YerelSatis');
       let defaultKat = isSatis ? 'Danışmanlık Geliri' : 'Genel Gider';
+      if(tur === 'SMM_Gider') defaultKat = 'Muhasebe / Yasal';
       const kategori = document.getElementById('f_kategori').value.trim() || defaultKat;
 
       if(tur === 'Fis_OKC' && cariId === "") { cariId = 'MUHTELIF_SATICI'; }
@@ -1330,10 +1435,10 @@
                   const eskiBakiyeIadesi = (eskiFatura.tur === 'Satis' || eskiFatura.tur === 'Ihracat' || eskiFatura.tur === 'YerelSatis') ? -eskiFatura.toplamTutar : eskiFatura.toplamTutar;
                   await updateDoc(doc(db, "cariler", eskiFatura.cariId), { bakiye: increment(eskiBakiyeIadesi) });
               }
-              await updateDoc(doc(db, "faturalar", id), { cariId: cariId, cariUnvan: secilenCari.unvan, faturaNo: faturaNo, tarih: tarih, tur: tur, paraBirimi: paraBirimi, tutar: tutar, kdvOran: kdvOran, kdvTutar: kdvTutar, toplamTutar: toplamTutar, aciklama: aciklama, kategori: kategori });
+              await updateDoc(doc(db, "faturalar", id), { cariId: cariId, cariUnvan: secilenCari.unvan, faturaNo: faturaNo, tarih: tarih, tur: tur, paraBirimi: paraBirimi, tutar: tutar, kdvOran: kdvOran, stopajOran: stopajOran, stopajTutar: stopajTutar, kdvTutar: kdvTutar, toplamTutar: toplamTutar, aciklama: aciklama, kategori: kategori });
               if(tur !== 'Fis_OKC' && cariId !== 'MUHTELIF_SATICI') { await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(yeniBakiyeDegisimi) }); }
           } else {
-              await addDoc(collection(db, "faturalar"), { cariId: cariId, cariUnvan: secilenCari.unvan, faturaNo: faturaNo, tarih: tarih, tur: tur, paraBirimi: paraBirimi, tutar: tutar, kdvOran: kdvOran, kdvTutar: kdvTutar, toplamTutar: toplamTutar, aciklama: aciklama, kategori: kategori, durum: tur === 'Fis_OKC' ? 'Ödendi' : 'Bekliyor', islemTarihi: serverTimestamp() });
+              await addDoc(collection(db, "faturalar"), { cariId: cariId, cariUnvan: secilenCari.unvan, faturaNo: faturaNo, tarih: tarih, tur: tur, paraBirimi: paraBirimi, tutar: tutar, kdvOran: kdvOran, stopajOran: stopajOran, stopajTutar: stopajTutar, kdvTutar: kdvTutar, toplamTutar: toplamTutar, aciklama: aciklama, kategori: kategori, durum: tur === 'Fis_OKC' ? 'Ödendi' : 'Bekliyor', islemTarihi: serverTimestamp() });
               
               if (tur === 'Fis_OKC') {
                   await addDoc(collection(db, "hesapHareketleri"), { bankaId: bankaId, cariId: cariId, tur: 'Odeme', tutar: toplamTutar, aciklama: `Fiş/ÖKC Harcaması (${kategori})`, tarih: new Date(tarih) });
@@ -3268,13 +3373,16 @@ window.islemDuzenleAc = function(id) {
                 
                 <ul class="nav nav-tabs mb-3" id="faturaTab" role="tablist">
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link active text-success fw-bold fatura-tab-btn" data-tur="Ihracat" data-bs-toggle="tab" data-bs-target="#satis" type="button">İhracat Faturası (0% KDV)</button>
+                        <button class="nav-link active text-success fw-bold fatura-tab-btn" data-tur="Ihracat" data-bs-toggle="tab" data-bs-target="#satis" type="button">İhracat Faturası</button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link text-success fw-bold fatura-tab-btn" data-tur="YerelSatis" data-bs-toggle="tab" data-bs-target="#yerelsatis" type="button">Yurtiçi Satış Faturası</button>
+                        <button class="nav-link text-success fw-bold fatura-tab-btn" data-tur="YerelSatis" data-bs-toggle="tab" data-bs-target="#yerelsatis" type="button">Yurtiçi Satış</button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link text-danger fw-bold fatura-tab-btn" data-tur="Alim" data-bs-toggle="tab" data-bs-target="#alim" type="button">Alım (Gider) Faturası</button>
+                        <button class="nav-link text-danger fw-bold fatura-tab-btn" data-tur="Alim" data-bs-toggle="tab" data-bs-target="#alim" type="button">Alım Faturası</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link text-warning text-dark fw-bold fatura-tab-btn" data-tur="SMM_Gider" data-bs-toggle="tab" data-bs-target="#smmGider" type="button">SMM Makbuzları</button>
                     </li>
                     <li class="nav-item" role="presentation">
                         <button class="nav-link text-info fw-bold fatura-tab-btn" data-tur="Proforma" data-bs-toggle="tab" data-bs-target="#proformalar" type="button">Proformalar</button>
@@ -3290,6 +3398,9 @@ window.islemDuzenleAc = function(id) {
                     </div>
                     <div class="tab-pane fade" id="alim">
                         <div class="table-responsive"><table class="table table-hover align-middle table-sm"><thead class="table-light text-muted small"><tr><th>Fatura No</th><th>Tarih</th><th>Tedarikçi Ünvanı</th><th>Açıklama</th><th>Matrah</th><th>KDV</th><th class="text-end">Toplam</th><th>İşlemler</th></tr></thead><tbody id="alimTabloGövdesi"></tbody></table></div>
+                    </div>
+                    <div class="tab-pane fade" id="smmGider">
+                        <div class="table-responsive"><table class="table table-hover align-middle table-sm"><thead class="table-light text-muted small"><tr><th>Makbuz No</th><th>Tarih</th><th>Hizmet Veren</th><th>Açıklama</th><th>Brüt Tutar</th><th>Stopaj</th><th>KDV</th><th class="text-end">Ödenecek Net</th><th>İşlemler</th></tr></thead><tbody id="smmTabloGövdesi"></tbody></table></div>
                     </div>
                     <div class="tab-pane fade" id="proformalar">
                         <div class="table-responsive"><table class="table table-hover align-middle table-sm"><thead class="table-light text-muted small"><tr><th>Tarih</th><th>Müşteri Ünvanı</th><th>Açıklama / Dil</th><th class="text-end">Tutar</th><th>İşlemler</th></tr></thead><tbody id="proformaTabloGövdesi"></tbody></table></div>
@@ -3320,11 +3431,12 @@ window.islemDuzenleAc = function(id) {
                                     <div class="row mb-3">
                                         <div class="col-md-4">
                                             <label class="form-label">Fatura Yönü *</label>
-                                            <select class="form-select border-primary fw-bold text-primary" id="f_tur" onchange="kategorileriDoldur(); if(typeof fisSecimiKontrol === 'function') fisSecimiKontrol();">
+                                            <select class="form-select border-primary fw-bold text-primary" id="f_tur" onchange="kategorileriDoldur(); if(typeof fisSecimiKontrol === 'function') fisSecimiKontrol(); window.hesaplaKdv();">
                                                 <option value="Ihracat">Hizmet/Mal İhracatı</option>
                                                 <option value="YerelSatis">Yurtiçi Satış</option>
                                                 <option value="Alim">Alım / Gider Faturası</option>
                                                 <option value="Fis_OKC">Fiş / ÖKC (Kartlı-Peşin Harcama)</option>
+                                                <option value="SMM_Gider">Alınan SMM Makbuzu (Stopajlı)</option>
                                             </select>
                                         </div>
                                         <!-- Eksik olan Fatura No satırı eklendi -->
@@ -3349,20 +3461,29 @@ window.islemDuzenleAc = function(id) {
                                                 <option value="EUR">Euro (€)</option>
                                             </select>
                                         </div>
-                                        <div class="col-md-3"><label class="form-label">Tutar (KDV Hariç) *</label><input type="number" class="form-control" id="f_tutar" onkeyup="hesaplaKdv()" onchange="hesaplaKdv()" step="0.01"></div>
-                                        <div class="col-md-4">
+                                        <div class="col-md-3"><label class="form-label">Tutar (Brüt / Matrah) *</label><input type="number" class="form-control" id="f_tutar" onkeyup="hesaplaKdv()" onchange="hesaplaKdv()" step="0.01"></div>
+                                        <div class="col-md-3">
                                             <label class="form-label">KDV Oranı (%)</label>
                                             <select class="form-select" id="f_kdvOran" onchange="hesaplaKdv()">
                                                 <option value="0">0% (İhracat / İstisna)</option>
                                                 <option value="20">20% (Genel KDV)</option>
                                                 <option value="10">10% (İndirimli KDV)</option>
                                                 <option value="1">1% (Özel KDV)</option>
-                                                <option value="20">20% (KDV Tevkifatı)</option>
                                             </select>
                                         </div>
-                                        <div class="col-md-2"><label class="form-label">KDV Tutarı</label><input type="text" class="form-control bg-light px-1" id="f_kdvTutar" readonly></div>
+                                        <div class="col-md-3">
+                                            <label class="form-label text-danger">Stopaj Kesintisi (%)</label>
+                                            <select class="form-select" id="f_stopajOran" onchange="hesaplaKdv()">
+                                                <option value="0">0% (Stopaj Yok)</option>
+                                                <option value="20">20% (SMM Standart Stopaj)</option>
+                                            </select>
+                                        </div>
                                     </div>
-                                    <div class="row mb-3"><div class="col-md-8"></div><div class="col-md-4"><label class="form-label fw-bold">Genel Toplam</label><input type="text" class="form-control border-success text-success fw-bold text-end" id="f_toplam" readonly></div></div>
+                                    <div class="row mb-3">
+                                        <div class="col-md-4"><label class="form-label text-muted small">Stopaj (Kesilen)</label><input type="text" class="form-control bg-light px-1 text-danger" id="f_stopajTutar" readonly value="0.00"></div>
+                                        <div class="col-md-4"><label class="form-label text-muted small">KDV Tutarı</label><input type="text" class="form-control bg-light px-1" id="f_kdvTutar" readonly></div>
+                                        <div class="col-md-4"><label class="form-label fw-bold">Ödenecek Net Toplam</label><input type="text" class="form-control border-success text-success fw-bold text-end" id="f_toplam" readonly></div>
+                                    </div>
                                 </form>
                             </div>
                             <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button><button type="button" class="btn btn-primary" onclick="faturaKaydet()">Faturayı İşle</button></div>
