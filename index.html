@@ -1545,8 +1545,7 @@ window.islemDuzenleKaydet = async function() {
       }
   };
 
-  // YENİ: İŞLEM DÜZENLEME (EŞLEŞTİRME DEĞİŞTİRME) FONKSİYONLARI
-  window.islemDuzenleAc = function(id) {
+window.islemDuzenleAc = function(id) {
       const islem = islemListesi.find(i => i.id === id);
       if(!islem) return;
       
@@ -1559,14 +1558,14 @@ window.islemDuzenleKaydet = async function() {
       document.getElementById('hd_bankaId').value = islem.bankaId;
       document.getElementById('hd_eskiCari').value = islem.cariId;
       document.getElementById('hd_eskiTur').value = islem.tur;
+      
+      // Tutarı hem gizli inputa hem de ekranda gösterilen inputa yazıyoruz
       document.getElementById('hd_tutar').value = islem.tutar;
+      document.getElementById('hd_tutar_gosterim').value = islem.tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2}) + " ₺";
       
       document.getElementById('hd_tur').value = islem.tur;
       
-      // Dinamik listeyi bankaya göre doldur
       window.hdTuruDegisti();
-      
-      // Varsa eski carisini seç
       document.getElementById('hd_cariId').value = islem.cariId;
       
       bootstrap.Modal.getOrCreateInstance(document.getElementById('islemDuzenleModal')).show();
@@ -1607,6 +1606,10 @@ window.islemDuzenleKaydet = async function() {
       const yeniTur = document.getElementById('hd_tur').value;
       const yeniCariId = document.getElementById('hd_cariId').value;
 
+      if(isNaN(tutar) || tutar <= 0) {
+          alert("Kritik Hata: İşlem tutarı okunamadı. Lütfen sayfayı yenileyip tekrar deneyin.");
+          return;
+      }
       if(!yeniCariId) { alert("Lütfen bir eşleştirme seçin!"); return; }
       if(eskiCariId === yeniCariId && eskiTur === yeniTur) {
           bootstrap.Modal.getInstance(document.getElementById('islemDuzenleModal')).hide();
@@ -1620,27 +1623,29 @@ window.islemDuzenleKaydet = async function() {
           // 1. ESKİ CARİ BAKİYESİNİ GERİ AL (Gerçek cari ise)
           let isOldSistem = eskiCariId.startsWith('SISTEM_') || eskiCariId === 'MUHTELIF_SATICI' || eskiCariId === 'VERGI_DAIRESI';
           if(!isOldSistem) {
-              const eskiCariIade = eskiTur === 'Tahsilat' ? tutar : -tutar; // Tahsilat düştü, şimdi geri ekliyoruz
+              const eskiCariIade = eskiTur === 'Tahsilat' ? tutar : -tutar; 
               await updateDoc(doc(db, "cariler", eskiCariId), { bakiye: increment(eskiCariIade) });
           }
+
+          const islem = islemListesi.find(i => i.id === islemId);
+          let islemTarihi = islem.tarih ? new Date(islem.tarih.seconds * 1000) : new Date();
 
           // 2. YENİ CARİYE VEYA BANKAYA UYGULA
           let isNewVirman = yeniCariId.startsWith('BANKA_');
           if (isNewVirman) {
               let karsiBankaId = yeniCariId.replace('BANKA_', '');
-              const islem = islemListesi.find(i => i.id === islemId);
               
               await updateDoc(doc(db, "hesapHareketleri", islemId), {
-                  cariId: 'SISTEM_VIRMAN', tur: islem.tur, aciklama: islem.aciklama + ' (Eşleştirildi)'
+                  cariId: 'SISTEM_VIRMAN', tur: yeniTur, aciklama: islem.aciklama + ' (Eşleştirildi)'
               });
               
               await addDoc(collection(db, "hesapHareketleri"), {
                   bankaId: karsiBankaId, cariId: 'SISTEM_VIRMAN', 
-                  tur: islem.tur === 'Tahsilat' ? 'Odeme' : 'Tahsilat', 
-                  tutar: tutar, aciklama: islem.aciklama + ' (Karşı Hesap)', tarih: islem.tarih
+                  tur: yeniTur === 'Tahsilat' ? 'Odeme' : 'Tahsilat', 
+                  tutar: tutar, aciklama: islem.aciklama + ' (Karşı Hesap)', tarih: islemTarihi
               });
               
-              let karsiFark = islem.tur === 'Tahsilat' ? -tutar : tutar;
+              let karsiFark = yeniTur === 'Tahsilat' ? -tutar : tutar;
               await updateDoc(doc(db, "bankalar", karsiBankaId), { bakiye: increment(karsiFark) });
           } else {
               await updateDoc(doc(db, "hesapHareketleri", islemId), {
@@ -1655,7 +1660,6 @@ window.islemDuzenleKaydet = async function() {
           }
 
           bootstrap.Modal.getInstance(document.getElementById('islemDuzenleModal')).hide();
-          // Ekstreyi modal kapandıktan sonra otomatik yenile
           setTimeout(() => { window.bankaEkstreAc(bankaId, true); }, 300);
       } catch(e) {
           alert("Hata: " + e.message);
@@ -2101,20 +2105,32 @@ window.islemDuzenleKaydet = async function() {
                   let aciklama = String(r['Açıklama'] || r['İşlem Açıklaması'] || '').trim();
                   let hareketTipi = String(r['Hareket tipi'] || r['İşlem Tipi'] || '').trim();
                   
-                  let tutarStr = String(r['İşlem Tutarı (TL)'] || r['İşlem Tutarı'] || r['Tutar'] || r['Tutar (TL)'] || r['Alacak'] || r['Borç'] || 0);
+                  let rawTutar = r['İşlem Tutarı (TL)'] || r['İşlem Tutarı'] || r['Tutar'] || r['Tutar (TL)'] || r['Alacak'] || r['Borç'];
+                  if (rawTutar === undefined || rawTutar === null) rawTutar = 0;
                   
-                  // ENPARA DÜZELTMESİ: Boşlukları, TL yazılarını at. Virgül ve noktayı düzelt.
-                  tutarStr = tutarStr.replace(/[^0-9,\.-]/g, '');
-                  if(tutarStr.includes('.') && tutarStr.includes(',')) {
-                      tutarStr = tutarStr.replace(/\./g, '').replace(',', '.');
+                  // ENPARA DÜZELTMESİ: Gizli boşlukları, &nbsp;, "TL" ve harfleri tamamen temizle
+                  let tutarStr = String(rawTutar).trim();
+                  tutarStr = tutarStr.replace(/[\s\xA0]/g, '').replace(/[a-zA-Z]/g, '').replace(/₺/g, '');
+                  
+                  // Türkiye standardı 1.250,50 -> 1250.50 dönüşümü
+                  if(tutarStr.includes(',') && tutarStr.includes('.')) {
+                      let lastComma = tutarStr.lastIndexOf(',');
+                      let lastDot = tutarStr.lastIndexOf('.');
+                      if(lastComma > lastDot) {
+                          // Virgül ondalık ise: 1.250,50
+                          tutarStr = tutarStr.replace(/\./g, '').replace(',', '.');
+                      } else {
+                          // Nokta ondalık ise (İngiliz standardı): 1,250.50
+                          tutarStr = tutarStr.replace(/,/g, '');
+                      }
                   } else if(tutarStr.includes(',')) {
+                      // Sadece virgül varsa: 150,50
                       tutarStr = tutarStr.replace(',', '.');
                   }
                   
                   let tutar = parseFloat(tutarStr);
-
-                  if(!aciklama && tutar === 0) return; 
-                  if(Number.isNaN(tutar)) return;
+                  if (isNaN(tutar)) tutar = 0; // Tutar hesaplanamasa bile SATIRI SİLME, kullanıcı ekranda görsün.
+                  if (!aciklama && tutar === 0) return; // Sadece tamamen boş satırları atla
 
                   let dStr = new Date().toISOString().split('T')[0];
                   if(tarih instanceof Date) {
@@ -3417,6 +3433,11 @@ window.islemDuzenleKaydet = async function() {
                                 <input type="hidden" id="hd_eskiCari">
                                 <input type="hidden" id="hd_eskiTur">
                                 <input type="hidden" id="hd_tutar">
+                                
+                                <div class="mb-3">
+                                    <label class="form-label text-muted small fw-bold">İşlem Tutarı</label>
+                                    <input type="text" id="hd_tutar_gosterim" class="form-control bg-white fw-bold text-dark" readonly disabled>
+                                </div>
 
                                 <div class="mb-3">
                                     <label class="form-label text-muted small fw-bold">İşlem Yönü / Türü</label>
