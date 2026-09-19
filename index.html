@@ -763,7 +763,13 @@
     let html = `<div id="yazdirilacak-alan" class="p-4 bg-white shadow-sm rounded border border-light">
         <div class="d-flex justify-content-between align-items-end mb-4 border-bottom pb-3">
             <div class="d-flex align-items-center">
-                <img src="Logo2.png" style="height: 110px; margin-right: 25px; object-fit: contain;" class="d-none d-print-block">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 90" style="max-width: 250px; height: auto; margin-right: 25px;" class="d-none d-print-block">
+    <text x="0" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="800" fill="#1e293b" letter-spacing="-4">CPA</text>
+    <rect x="114" y="32" width="22" height="6" fill="#f39c12" />
+    <text x="140" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="300" fill="#64748b" letter-spacing="-3">FTC</text>
+    <text x="3" y="78" font-family="'Inter', sans-serif" font-size="9" font-weight="600" fill="#475569" letter-spacing="3.2">CERTIFIED PUBLIC ACCOUNTING</text>
+    <text x="3" y="90" font-family="'Inter', sans-serif" font-size="9" font-weight="400" fill="#94a3b8" letter-spacing="3.2">FOREIGN TRADE CONSULTANCY</text>
+</svg>
                 <div><h4 class="mb-0 text-dark fw-bold" style="color: #2c3e50;">${cari.unvan}</h4><small class="text-muted">Cari Hesap Ekstresi</small></div>
             </div>
             <div class="text-end"><h6 class="mb-0 text-muted small">Güncel Kapanış Bakiyesi</h6><h4 class="${cari.bakiye >= 0 ? 'text-success' : 'text-danger'} fw-bold mb-0">${Math.abs(cari.bakiye).toFixed(2)} ${birim}</h4></div>
@@ -836,7 +842,13 @@
       let html = `
       <div id="yazdirilacak-alan" class="p-5 bg-white shadow-sm rounded border border-light" style="min-height: 148mm; max-width: 210mm; margin: auto;">
           <div class="row mb-4 border-bottom border-2 pb-3 border-dark">
-              <div class="col-6"><img src="Logo2.png" style="max-height: 90px; object-fit: contain;" class="mb-2 d-print-block"></div>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 90" style="max-width: 250px; height: auto;" class="mb-2 d-print-block">
+    <text x="0" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="800" fill="#1e293b" letter-spacing="-4">CPA</text>
+    <rect x="114" y="32" width="22" height="6" fill="#f39c12" />
+    <text x="140" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="300" fill="#64748b" letter-spacing="-3">FTC</text>
+    <text x="3" y="78" font-family="'Inter', sans-serif" font-size="9" font-weight="600" fill="#475569" letter-spacing="3.2">CERTIFIED PUBLIC ACCOUNTING</text>
+    <text x="3" y="90" font-family="'Inter', sans-serif" font-size="9" font-weight="400" fill="#94a3b8" letter-spacing="3.2">FOREIGN TRADE CONSULTANCY</text>
+</svg>
               <div class="col-6 text-end text-muted small" style="font-size: 12px;">
                   <h5 class="text-dark fw-bold mb-1">${v.tamUnvan || 'CPA FTC KURUMSAL KAYNAK YÖNETİMİ VE DIŞ TİCARET LTD.ŞTİ.'}</h5>
                   ${v.adres || 'Yeniyalı Mah. Hürriyet Bul. Anadolu Döküm Sitesi Ticari Depo No: 47/3 Körfez / Kocaeli'}<br>
@@ -1044,7 +1056,13 @@
       let html = `
       <div id="yazdirilacak-alan" class="p-5 bg-white shadow-sm rounded border border-light" style="min-height: 297mm; max-width: 210mm; margin: auto;">
           <div class="row mb-5 border-bottom border-2 pb-4 border-dark">
-              <div class="col-6"><img src="Logo2.png" style="max-height: 140px; object-fit: contain;" class="mb-2 d-print-block"></div>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 90" style="max-width: 280px; height: auto;" class="mb-2 d-print-block">
+    <text x="0" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="800" fill="#1e293b" letter-spacing="-4">CPA</text>
+    <rect x="114" y="32" width="22" height="6" fill="#f39c12" />
+    <text x="140" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="300" fill="#64748b" letter-spacing="-3">FTC</text>
+    <text x="3" y="78" font-family="'Inter', sans-serif" font-size="9" font-weight="600" fill="#475569" letter-spacing="3.2">CERTIFIED PUBLIC ACCOUNTING</text>
+    <text x="3" y="90" font-family="'Inter', sans-serif" font-size="9" font-weight="400" fill="#94a3b8" letter-spacing="3.2">FOREIGN TRADE CONSULTANCY</text>
+</svg>
               <div class="col-6 text-end text-muted small" style="font-size: 12px;">
                   <h5 class="text-dark fw-bold mb-1">${v.tamUnvan || 'CPA FTC KURUMSAL KAYNAK YÖNETİMİ VE DIŞ TİCARET LTD.ŞTİ.'}</h5>
                   ${v.adres || 'Yeniyalı Mah. Hürriyet Bul. Anadolu Döküm Sitesi Ticari Depo No: 47/3 Körfez / Kocaeli'}<br>
@@ -1912,7 +1930,13 @@ window.islemDuzenleAc = function(id) {
       let html = `<div id="yazdirilacak-alan" class="p-4 bg-white shadow-sm rounded border border-light">
           <div class="d-flex justify-content-between align-items-end mb-4 border-bottom pb-3">
               <div class="d-flex align-items-center">
-                  <img src="Logo2.png" style="height: 60px; margin-right: 20px;" class="d-none d-print-block">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 90" style="max-width: 220px; height: auto; margin-right: 20px;" class="d-none d-print-block">
+    <text x="0" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="800" fill="#1e293b" letter-spacing="-4">CPA</text>
+    <rect x="114" y="32" width="22" height="6" fill="#f39c12" />
+    <text x="140" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="300" fill="#64748b" letter-spacing="-3">FTC</text>
+    <text x="3" y="78" font-family="'Inter', sans-serif" font-size="9" font-weight="600" fill="#475569" letter-spacing="3.2">CERTIFIED PUBLIC ACCOUNTING</text>
+    <text x="3" y="90" font-family="'Inter', sans-serif" font-size="9" font-weight="400" fill="#94a3b8" letter-spacing="3.2">FOREIGN TRADE CONSULTANCY</text>
+</svg>
                   <div>
                       <h4 class="mb-0 text-dark fw-bold">${banka.hesapAdi}</h4>
                       <small class="text-muted">Banka/Kasa Ekstresi</small>
@@ -2934,7 +2958,14 @@ window.islemDuzenleAc = function(id) {
       let html = `
       <div id="yazdirilacak-alan" class="p-5 bg-white shadow-sm rounded border border-light">
           <div class="row mb-4 border-bottom border-2 pb-3 border-dark">
-              <div class="col-6"><img src="Logo2.png" style="max-height: 80px; object-fit: contain;" class="mb-2 d-print-block"></div>
+              <div class="col-6">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 90" style="max-width: 250px; height: auto;" class="mb-2 d-print-block">
+    <text x="0" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="800" fill="#1e293b" letter-spacing="-4">CPA</text>
+    <rect x="114" y="32" width="22" height="6" fill="#f39c12" />
+    <text x="140" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="300" fill="#64748b" letter-spacing="-3">FTC</text>
+    <text x="3" y="78" font-family="'Inter', sans-serif" font-size="9" font-weight="600" fill="#475569" letter-spacing="3.2">CERTIFIED PUBLIC ACCOUNTING</text>
+    <text x="3" y="90" font-family="'Inter', sans-serif" font-size="9" font-weight="400" fill="#94a3b8" letter-spacing="3.2">FOREIGN TRADE CONSULTANCY</text>
+</svg>
               <div class="col-6 text-end text-muted small">
                   <h5 class="text-dark fw-bold mb-1">${v.tamUnvan || 'CPA FTC'}</h5>
                   Rapor Dönemi: <strong>${bas.split('-').reverse().join('.')} - ${bit.split('-').reverse().join('.')}</strong>
@@ -3024,7 +3055,15 @@ window.islemDuzenleAc = function(id) {
       
       alan.innerHTML = `
           <div id="yazdirilacak-alan">
-              <div class="text-center mb-4 d-none d-print-block"><img src="Logo2.png" style="max-height: 130px; object-fit: contain;"></div>
+              <div class="text-center mb-4 d-none d-print-block">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 90" style="max-width: 300px; height: auto;">
+    <text x="0" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="800" fill="#1e293b" letter-spacing="-4">CPA</text>
+    <rect x="114" y="32" width="22" height="6" fill="#f39c12" />
+    <text x="140" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="300" fill="#64748b" letter-spacing="-3">FTC</text>
+    <text x="3" y="78" font-family="'Inter', sans-serif" font-size="9" font-weight="600" fill="#475569" letter-spacing="3.2">CERTIFIED PUBLIC ACCOUNTING</text>
+    <text x="3" y="90" font-family="'Inter', sans-serif" font-size="9" font-weight="400" fill="#94a3b8" letter-spacing="3.2">FOREIGN TRADE CONSULTANCY</text>
+</svg>
+                </div>
               <h4 class="mb-4 text-center d-none d-print-block">${v.unvan || 'ŞİRKET KÜNYESİ'}</h4>
               <div class="row">
                   <h6 class="border-bottom pb-2 text-primary"><i class="fas fa-info-circle"></i> Resmi Kimlik Bilgileri</h6>
