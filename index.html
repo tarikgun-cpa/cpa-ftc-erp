@@ -1559,12 +1559,11 @@ window.islemDuzenleAc = function(id) {
       document.getElementById('hd_eskiCari').value = islem.cariId;
       document.getElementById('hd_eskiTur').value = islem.tur;
       
-      // Tutarı hem gizli inputa hem de ekranda gösterilen inputa yazıyoruz
+      // Eski tutarı referans olarak gizli inputa, değiştirilebilir olarak ekrana alıyoruz
       document.getElementById('hd_tutar').value = islem.tutar;
-      document.getElementById('hd_tutar_gosterim').value = islem.tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2}) + " ₺";
+      document.getElementById('hd_tutar_gosterim').value = islem.tutar;
       
       document.getElementById('hd_tur').value = islem.tur;
-      
       window.hdTuruDegisti();
       document.getElementById('hd_cariId').value = islem.cariId;
       
@@ -1601,17 +1600,18 @@ window.islemDuzenleAc = function(id) {
       const bankaId = document.getElementById('hd_bankaId').value;
       const eskiCariId = document.getElementById('hd_eskiCari').value;
       const eskiTur = document.getElementById('hd_eskiTur').value;
-      const tutar = parseFloat(document.getElementById('hd_tutar').value);
+      const eskiTutar = parseFloat(document.getElementById('hd_tutar').value);
       
       const yeniTur = document.getElementById('hd_tur').value;
       const yeniCariId = document.getElementById('hd_cariId').value;
+      const yeniTutar = parseFloat(document.getElementById('hd_tutar_gosterim').value);
 
-      if(isNaN(tutar) || tutar <= 0) {
-          alert("Kritik Hata: İşlem tutarı okunamadı. Lütfen sayfayı yenileyip tekrar deneyin.");
+      if(isNaN(yeniTutar) || yeniTutar <= 0) {
+          alert("Lütfen geçerli bir işlem tutarı girin.");
           return;
       }
       if(!yeniCariId) { alert("Lütfen bir eşleştirme seçin!"); return; }
-      if(eskiCariId === yeniCariId && eskiTur === yeniTur) {
+      if(eskiCariId === yeniCariId && eskiTur === yeniTur && eskiTutar === yeniTutar) {
           bootstrap.Modal.getInstance(document.getElementById('islemDuzenleModal')).hide();
           return;
       }
@@ -1620,52 +1620,57 @@ window.islemDuzenleAc = function(id) {
       btn.disabled = true; btn.innerHTML = 'İşleniyor...';
 
       try {
-          // 1. ESKİ CARİ BAKİYESİNİ GERİ AL (Gerçek cari ise)
+          // 1. ESKİ CARİ VE ESKİ BANKA BAKİYESİNİ GERİ AL (REVERT)
           let isOldSistem = eskiCariId.startsWith('SISTEM_') || eskiCariId === 'MUHTELIF_SATICI' || eskiCariId === 'VERGI_DAIRESI';
           if(!isOldSistem) {
-              const eskiCariIade = eskiTur === 'Tahsilat' ? tutar : -tutar; 
+              const eskiCariIade = eskiTur === 'Tahsilat' ? eskiTutar : -eskiTutar; 
               await updateDoc(doc(db, "cariler", eskiCariId), { bakiye: increment(eskiCariIade) });
           }
+          const eskiBankaIade = eskiTur === 'Tahsilat' ? -eskiTutar : eskiTutar;
+          await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(eskiBankaIade) });
 
           const islem = islemListesi.find(i => i.id === islemId);
           let islemTarihi = islem.tarih ? new Date(islem.tarih.seconds * 1000) : new Date();
 
-          // 2. YENİ CARİYE VEYA BANKAYA UYGULA
+          // 2. YENİ CARİ VE YENİ BANKA BAKİYESİNİ UYGULA
           let isNewVirman = yeniCariId.startsWith('BANKA_');
           if (isNewVirman) {
               let karsiBankaId = yeniCariId.replace('BANKA_', '');
               
               await updateDoc(doc(db, "hesapHareketleri", islemId), {
-                  cariId: 'SISTEM_VIRMAN', tur: yeniTur, aciklama: islem.aciklama + ' (Eşleştirildi)'
+                  cariId: 'SISTEM_VIRMAN', tur: yeniTur, tutar: yeniTutar, aciklama: islem.aciklama + ' (Eşleştirildi)'
               });
-              
               await addDoc(collection(db, "hesapHareketleri"), {
                   bankaId: karsiBankaId, cariId: 'SISTEM_VIRMAN', 
                   tur: yeniTur === 'Tahsilat' ? 'Odeme' : 'Tahsilat', 
-                  tutar: tutar, aciklama: islem.aciklama + ' (Karşı Hesap)', tarih: islemTarihi
+                  tutar: yeniTutar, aciklama: islem.aciklama + ' (Karşı Hesap)', tarih: islemTarihi
               });
               
-              let karsiFark = yeniTur === 'Tahsilat' ? -tutar : tutar;
+              let karsiFark = yeniTur === 'Tahsilat' ? -yeniTutar : yeniTutar;
               await updateDoc(doc(db, "bankalar", karsiBankaId), { bakiye: increment(karsiFark) });
           } else {
               await updateDoc(doc(db, "hesapHareketleri", islemId), {
-                  cariId: yeniCariId, tur: yeniTur
+                  cariId: yeniCariId, tur: yeniTur, tutar: yeniTutar
               });
               
               let isNewSistem = yeniCariId.startsWith('SISTEM_') || yeniCariId === 'MUHTELIF_SATICI' || yeniCariId === 'VERGI_DAIRESI';
               if(!isNewSistem) {
-                  const yeniCariEtki = yeniTur === 'Tahsilat' ? -tutar : tutar;
+                  const yeniCariEtki = yeniTur === 'Tahsilat' ? -yeniTutar : yeniTutar;
                   await updateDoc(doc(db, "cariler", yeniCariId), { bakiye: increment(yeniCariEtki) });
               }
           }
 
+          // YENİ BANKA BAKİYESİNİ UYGULA
+          const yeniBankaEtki = yeniTur === 'Tahsilat' ? yeniTutar : -yeniTutar;
+          await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(yeniBankaEtki) });
+
           bootstrap.Modal.getInstance(document.getElementById('islemDuzenleModal')).hide();
-          setTimeout(() => { window.bankaEkstreAc(bankaId, true); }, 300);
-      } catch(e) {
-          alert("Hata: " + e.message);
-      } finally {
-          btn.disabled = false; btn.innerHTML = 'Eşleştirmeyi Kaydet';
-      }
+          setTimeout(() => { 
+              if(document.getElementById('banka_ekstre_alan') && !document.getElementById('banka_ekstre_alan').classList.contains('d-none')) {
+                  window.bankaEkstreAc(bankaId, true); 
+              } else { window.bankalariCiz(); }
+          }, 300);
+      } catch(e) { alert("Hata: " + e.message); } finally { btn.disabled = false; btn.innerHTML = 'Eşleştirmeyi Kaydet'; }
   };
 
   window.bankaSil = async function(id) {
@@ -2344,16 +2349,12 @@ window.islemDuzenleAc = function(id) {
           let secimId = document.getElementById(`ex_cari_${h.index}`).value;
           let islemTuru = document.getElementById(`ex_tur_${h.index}`).value;
           
-          if(!secimId || secimId === 'SISTEM_ESLESMEYEN') {
-              atlananSayi++;
-              document.getElementById(`ex_row_${h.index}`).classList.replace('bg-warning', 'bg-danger');
-              continue; 
-          }
+          if(!secimId || secimId === '') { secimId = 'SISTEM_ESLESMEYEN'; }
 
           try {
               // MANUEL SEÇİMLERİ YAPAY ZEKA GİBİ KURALLARA ÖĞRET (OTO KURAL)
-              if(h.eslesenId === 'SISTEM_ESLESMEYEN' || h.eslesenId === '') {
-                  let kelimeOnerisi = h.aciklama.trim().split(/\s+/).slice(0, 2).join(' '); // Açıklamanın ilk 2 kelimesi kural olsun
+              if(h.eslesenId === 'SISTEM_ESLESMEYEN' && secimId !== 'SISTEM_ESLESMEYEN') {
+                  let kelimeOnerisi = h.aciklama.trim().split(/\s+/).slice(0, 2).join(' '); 
                   if(kelimeOnerisi.length > 3) {
                       let kurallarArray = (typeof ozelKurallar !== 'undefined' ? ozelKurallar : []);
                       let kuralVarMi = kurallarArray.some(k => k.kelime.toLowerCase() === kelimeOnerisi.toLowerCase());
@@ -2365,7 +2366,7 @@ window.islemDuzenleAc = function(id) {
                   }
               }
 
-              let gercekYon = h.anaYon; // Exceldeki asıl giriş çıkış yönü
+              let gercekYon = h.anaYon; 
               
               if(secimId.startsWith('BANKA_')) {
                   // VİRMAN VE KART ÖDEMELERİ
@@ -2385,25 +2386,30 @@ window.islemDuzenleAc = function(id) {
                   await updateDoc(doc(db, "bankalar", karsiBankaId), { bakiye: increment(karsiFark) });
                   
               } else {
-                  // NORMAL CARİ VEYA SİSTEMSEL İŞLEMLER
+                  // NORMAL CARİ VEYA SİSTEMSEL VEYA EŞLEŞMEYENLER
                   await addDoc(collection(db, "hesapHareketleri"), {
                       bankaId: h.bankaId, cariId: secimId, tur: islemTuru, tutar: h.tutar, aciklama: h.aciklama, tarih: new Date(h.tarih) 
                   });
 
-                  // Cari Bakiyesini Güncelle (Eğer gerçek cari ise)
+                  // Cari Bakiyesini Güncelle
                   let isSistemCard = secimId.startsWith('SISTEM_') || secimId === 'MUHTELIF_SATICI';
                   if(!isSistemCard && (islemTuru === 'Tahsilat' || islemTuru === 'Odeme' || islemTuru === 'Ortak_Borc_Alacak')) {
                       const cariBakiyeDegisimi = gercekYon === 'Tahsilat' ? -h.tutar : h.tutar;
                       await updateDoc(doc(db, "cariler", secimId), { bakiye: increment(cariBakiyeDegisimi) });
                   }
 
-                  // Banka Bakiyesini Güncelle
+                  // Banka Bakiyesini Güncelle (Eşleşmeyen de olsa bankadan para çıktı!)
                   let bankaBakiyeDegisimi = gercekYon === 'Tahsilat' ? h.tutar : -h.tutar;
                   await updateDoc(doc(db, "bankalar", h.bankaId), { bakiye: increment(bankaBakiyeDegisimi) });
               }
               
-              document.getElementById(`ex_row_${h.index}`).classList.remove('bg-warning', 'bg-opacity-10');
-              document.getElementById(`ex_row_${h.index}`).classList.add('table-success');
+              if(secimId === 'SISTEM_ESLESMEYEN') {
+                  document.getElementById(`ex_row_${h.index}`).classList.replace('bg-warning', 'bg-danger');
+                  atlananSayi++;
+              } else {
+                  document.getElementById(`ex_row_${h.index}`).classList.remove('bg-warning', 'bg-opacity-10', 'bg-danger');
+                  document.getElementById(`ex_row_${h.index}`).classList.add('table-success');
+              }
               
               h.eslesenId = null;
               islenenSayi++;
@@ -2412,8 +2418,10 @@ window.islemDuzenleAc = function(id) {
           }
       }
 
-      alert(`Toplu İşlem Tamamlandı!\n${islenenSayi} hareket başarıyla sisteme aktarıldı.\n${ogrenilenKuralSayisi} adet yeni Otomatik Eşleşme Kuralı sistem hafızasına alındı!\n(Sarı Uyarı İkonlu hareketler atlanmıştır, işlemi ekstre üzerinden yapabilirsiniz)`);
+      alert(`Toplu İşlem Tamamlandı!\nBankaya Aktarılan Toplam Kayıt: ${islenenSayi}\nEşleşmeyen (Ekstreden Değiştirilecek): ${atlananSayi}\nYeni Öğrenilen Oto-Kural: ${ogrenilenKuralSayisi}`);
       btn.innerHTML = '<i class="fas fa-save me-1"></i> Eşleşenleri Sisteme Kaydet'; btn.disabled = false;
+      bootstrap.Modal.getInstance(document.getElementById('bankaExcelModal')).hide();
+      window.bankaEkstreAc(document.getElementById('ex_banka_secim').value, true);
   };
 
   // ---------------- VERGİ VE YASAL ÖDEME İŞLEMLERİ ----------------
@@ -3436,7 +3444,7 @@ window.islemDuzenleAc = function(id) {
                                 
                                 <div class="mb-3">
                                     <label class="form-label text-muted small fw-bold">İşlem Tutarı</label>
-                                    <input type="text" id="hd_tutar_gosterim" class="form-control bg-white fw-bold text-dark" readonly disabled>
+                                    <input type="number" step="0.01" id="hd_tutar_gosterim" class="form-control bg-white fw-bold text-primary">
                                 </div>
 
                                 <div class="mb-3">
