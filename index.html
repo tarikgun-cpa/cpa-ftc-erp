@@ -3715,7 +3715,7 @@ window.islemDuzenleAc = function(id) {
   };
 
   window.operasyonKaydet = async function() {
-      window.opHesapla(); // Verileri kaydetmeden önce son kez hesapla
+      window.opHesapla(); 
       
       const id = document.getElementById('op_id').value;
       const data = {
@@ -3748,6 +3748,17 @@ window.islemDuzenleAc = function(id) {
       try {
           if(id) await updateDoc(doc(db, "operasyonlar", id), data);
           else await addDoc(collection(db, "operasyonlar"), data);
+
+          // YENİ: İlgili faturayı bul ve açıklamasını otomatik güncelle
+          if (data.cpaFaturaNo && data.cpaFaturaNo.trim() !== "") {
+              let sembol = data.paraBirimi === 'USD' ? '$' : '€';
+              let otoAciklama = `${data.firma} Komisyon: ${data.komisyonTutar.toLocaleString('tr-TR')} ${sembol} x Kur: ${data.kur}`;
+              let mevcutFatura = faturaListesi.find(f => f.faturaNo === data.cpaFaturaNo);
+              if (mevcutFatura) {
+                  await updateDoc(doc(db, "faturalar", mevcutFatura.id), { aciklama: otoAciklama });
+              }
+          }
+
           bootstrap.Modal.getInstance(document.getElementById('operasyonModal')).hide();
       } catch(e) { alert("Hata: " + e.message); }
   };
@@ -3757,7 +3768,7 @@ window.islemDuzenleAc = function(id) {
       try { await deleteDoc(doc(db, "operasyonlar", id)); } catch(e) { alert("Hata: " + e.message); }
   };
 
-  // MÜŞTERİYE WHATSAPP'TAN ATILACAK ÖZET KART (Resme Uygun HTML)
+ // MÜŞTERİYE WHATSAPP'TAN ATILACAK ÖZET KART (Resme Uygun HTML)
   window.operasyonOzetAc = function(id) {
       const op = operasyonListesi.find(x => x.id === id);
       if(!op) return;
@@ -3766,6 +3777,18 @@ window.islemDuzenleAc = function(id) {
       
       let html = `
       <div style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 15px; border: 1px solid #ddd; padding: 20px; border-radius: 8px;">
+          
+          <!-- YENİ: LOGO ALANI -->
+          <div style="text-align: center; margin-bottom: 20px;">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 90" style="max-width: 220px; height: auto;">
+                  <text x="0" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="800" fill="#1e293b" letter-spacing="-4">CPA</text>
+                  <rect x="114" y="32" width="22" height="6" fill="#f39c12" />
+                  <text x="140" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="300" fill="#64748b" letter-spacing="-3">FTC</text>
+                  <text x="3" y="78" font-family="'Inter', sans-serif" font-size="9" font-weight="600" fill="#475569" letter-spacing="3.2">CERTIFIED PUBLIC ACCOUNTING</text>
+                  <text x="3" y="90" font-family="'Inter', sans-serif" font-size="9" font-weight="400" fill="#94a3b8" letter-spacing="3.2">FOREIGN TRADE CONSULTANCY</text>
+              </svg>
+          </div>
+
           <!-- Üst Firma Bilgisi -->
           <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
               <tr style="background-color: #f1f5f9;">
@@ -3797,28 +3820,33 @@ window.islemDuzenleAc = function(id) {
           <!-- Operasyon Detayları -->
           <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;">
               <tr style="background-color: #f1f5f9;">
-                  <td style="padding: 10px 15px; color: #ef4444; font-weight: bold; width: 30%; font-size: 16px;">TCT Fatura No</td>
+                  <td style="padding: 10px 15px; color: #ef4444; font-weight: bold; width: 30%; font-size: 16px;">Navlun Fatura No</td>
                   <td style="padding: 10px 15px; color: #ef4444; font-size: 16px; font-weight: 500;">${op.nakliyeFaturaNo || '-'}</td>
                   <td></td>
                   <td></td>
               </tr>
+              <!-- YENİ: Nakliye Firması -->
               <tr>
+                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Nakliye Firması</td>
+                  <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.nakliyeFirma || '-'}</td>
+              </tr>
+              <tr style="background-color: #f1f5f9;">
                   <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Palet</td>
                   <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.palet || '-'}</td>
               </tr>
-              <tr style="background-color: #f1f5f9;">
+              <tr>
                   <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Kilo</td>
                   <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.kilo ? op.kilo.toLocaleString('tr-TR') : '-'}</td>
               </tr>
-              <tr>
+              <tr style="background-color: #f1f5f9;">
                   <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Yük No</td>
                   <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.yukNo || '-'}</td>
               </tr>
-              <tr style="background-color: #f1f5f9;">
+              <tr>
                   <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Sefer No</td>
                   <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.seferNo || '-'}</td>
               </tr>
-              <tr>
+              <tr style="background-color: #f1f5f9;">
                   <td style="padding: 10px 15px; color: #3b82f6; font-weight: bold; font-size: 16px;">CPA Fatura No</td>
                   <td style="padding: 10px 15px; color: #3b82f6; font-weight: bold; font-size: 16px;">${op.cpaFaturaNo || '-'}</td>
                   <td style="padding: 10px 15px; color: #ef4444; font-weight: bold; text-align: right; font-size: 16px;">₺${op.tlTutar ? op.tlTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0,00'}</td>
@@ -3841,6 +3869,7 @@ window.islemDuzenleAc = function(id) {
       document.getElementById('whatsapp_kart_alani').innerHTML = html;
       new bootstrap.Modal(document.getElementById('opOzetModal')).show();
   };
+ 
 </script>
 
 <script>
