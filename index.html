@@ -129,6 +129,7 @@
             <a href="#" onclick="sayfaYukle('faturalar')"><i class="fas fa-file-invoice-dollar"></i> Faturalar</a>
             <a href="#" onclick="sayfaYukle('cariler')"><i class="fas fa-users"></i> Cari Hesaplar</a>
             <a href="#" onclick="sayfaYukle('bankalar')"><i class="fas fa-university"></i> Banka Hesapları</a>
+            <a href="#" onclick="sayfaYukle('operasyon')"><i class="fas fa-truck"></i> Operasyon</a>
             <a href="#" onclick="sayfaYukle('vergiler')"><i class="fas fa-landmark"></i> Vergi Ödemeleri</a>
             <a href="#" onclick="sayfaYukle('gorevler')"><i class="fas fa-tasks"></i> Görevler</a>
             <a href="#" onclick="sayfaYukle('ik')"><i class="fas fa-id-badge"></i> İnsan Kaynakları</a>
@@ -169,6 +170,7 @@
   let gorevListesi = [];
   let kunyeVerisi = {};
   let islemListesi = [];
+  let operasyonListesi = []; // YENİ EKLENDİ
 
   let aiGecmisListesi = [];
   let personelListesi = [];
@@ -246,6 +248,14 @@
               snapshot.forEach((doc) => { vergiListesi.push({ id: doc.id, ...doc.data() }); });
               vergiListesi.sort((a,b) => new Date(a.sonTarih) - new Date(b.sonTarih));
               if (document.getElementById('bekleyenVergiTabloGövdesi')) { window.vergileriCiz(); }
+          });
+
+          // OPERASYONLARI DİNLE
+          onSnapshot(collection(db, "operasyonlar"), (snapshot) => {
+              operasyonListesi = [];
+              snapshot.forEach((doc) => { operasyonListesi.push({ id: doc.id, ...doc.data() }); });
+              operasyonListesi.sort((a,b) => new Date(b.cpaTarih || '2099') - new Date(a.cpaTarih || '2099'));
+              if (document.getElementById('operasyonTabloGövdesi')) { window.operasyonlariCiz(); }
           });
 
           // GÖREVLERİ DİNLE
@@ -3604,6 +3614,233 @@ window.islemDuzenleAc = function(id) {
       } catch(error) { alert("AI Asistanı Uyarısı: " + error.message); } 
       finally { btn.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Gönder'; btn.disabled = false; }
   };
+
+  // ---------------- OPERASYON VE KOMİSYON İŞLEMLERİ ----------------
+  window.opHesapla = function() {
+      let nalun = parseFloat(document.getElementById('op_nalun').value) || 0;
+      let ydg = parseFloat(document.getElementById('op_ydg').value) || 0;
+      let komisyon = parseFloat(document.getElementById('op_komisyon').value) || 0;
+      let kur = parseFloat(document.getElementById('op_kur').value) || 0;
+
+      let total = nalun + ydg + komisyon;
+      let tl = komisyon * kur;
+      let yuzde = nalun > 0 ? (komisyon / nalun) * 100 : 0;
+
+      document.getElementById('op_total').value = total.toFixed(2);
+      document.getElementById('op_tl').value = tl.toFixed(2);
+      document.getElementById('op_yuzde').value = yuzde.toFixed(0);
+  };
+
+  window.operasyonlariCiz = function() {
+      const tbody = document.getElementById('operasyonTabloGövdesi');
+      if(!tbody) return;
+      tbody.innerHTML = '';
+      
+      operasyonListesi.forEach(op => {
+          let sembol = op.paraBirimi === 'USD' ? '$' : '€';
+          
+          // Fatura Numarasından Tıklanabilir Link Oluştur (CPA Faturası Varsa Eşleştirir)
+          let fBul = faturaListesi.find(f => f.faturaNo === op.cpaFaturaNo);
+          let cpaLinkHtml = fBul 
+              ? `<a href="#" onclick="sayfaYukle('faturalar'); setTimeout(() => faturaDuzenleAc('${fBul.id}'), 300); return false;" class="text-primary fw-bold text-decoration-underline" title="Faturaya Git">${op.cpaFaturaNo}</a>` 
+              : `<span class="text-dark">${op.cpaFaturaNo || '-'}</span>`;
+
+          let checkIcon = op.tahsilEdildi ? '<i class="fas fa-check text-success fs-6"></i>' : '<i class="fas fa-clock text-warning"></i>';
+          let rowColor = op.tahsilEdildi ? '' : 'bg-warning bg-opacity-10';
+
+          let tr = `
+              <tr class="${rowColor}">
+                  <td>${op.cpaTarih ? op.cpaTarih.split('-').reverse().join('.') : '-'}</td>
+                  <td>${cpaLinkHtml}</td>
+                  <td>${op.sevkTarihi ? op.sevkTarihi.split('-').reverse().join('.') : '-'}</td>
+                  <td>${op.ihracatFaturaNo || '-'}</td>
+                  <td class="fw-bold text-dark">${op.firma || '-'}</td>
+                  <td>${op.nakliyeFirma || '-'}</td>
+                  <td class="text-danger fw-medium">${op.nakliyeFaturaNo || '-'}</td>
+                  <td>${op.yukNo || '-'}</td>
+                  <td>${op.seferNo || '-'}</td>
+                  <td class="text-end">${op.nalunTutar ? op.nalunTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0,00'} ${sembol}</td>
+                  <td class="text-end text-success fw-bold">${op.komisyonTutar ? op.komisyonTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0,00'} ${sembol}</td>
+                  <td class="text-end fw-bold">${op.totalTutar ? op.totalTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0,00'} ${sembol}</td>
+                  <td class="text-end">${op.kur || '0,00'}</td>
+                  <td class="text-end text-danger fw-bold">${op.tlTutar ? op.tlTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0,00'} ₺</td>
+                  <td class="text-center text-success fw-bold">%${op.yuzde || '0'}</td>
+                  <td class="text-center">
+                      <button class="btn btn-sm btn-outline-success py-0 me-1" title="Özet Çıkar (Whatsapp)" onclick="operasyonOzetAc('${op.id}')"><i class="fab fa-whatsapp"></i></button>
+                      <button class="btn btn-sm btn-outline-primary py-0 me-1" title="Düzenle" onclick="operasyonDuzenleAc('${op.id}')"><i class="fas fa-edit"></i></button>
+                      <button class="btn btn-sm btn-outline-danger py-0" title="Sil" onclick="operasyonSil('${op.id}')"><i class="fas fa-trash"></i></button>
+                  </td>
+              </tr>
+          `;
+          tbody.innerHTML += tr;
+      });
+      if(operasyonListesi.length === 0) tbody.innerHTML = '<tr><td colspan="16" class="text-center text-muted py-4">Kayıtlı operasyon bulunmuyor.</td></tr>';
+  };
+
+  window.operasyonEkleAc = function() {
+      document.getElementById('operasyonForm').reset();
+      document.getElementById('op_id').value = '';
+      document.getElementById('op_paraBirimi').value = 'EUR';
+      new bootstrap.Modal(document.getElementById('operasyonModal')).show();
+  };
+
+  window.operasyonDuzenleAc = function(id) {
+      const op = operasyonListesi.find(x => x.id === id);
+      if(!op) return;
+      
+      document.getElementById('op_id').value = op.id;
+      document.getElementById('op_cpaTarih').value = op.cpaTarih || '';
+      document.getElementById('op_cpaNo').value = op.cpaFaturaNo || '';
+      document.getElementById('op_firma').value = op.firma || '';
+      document.getElementById('op_adres').value = op.adres || '';
+      document.getElementById('op_sevkTarihi').value = op.sevkTarihi || '';
+      document.getElementById('op_ihracatFt').value = op.ihracatFaturaNo || '';
+      document.getElementById('op_nakliyeFirma').value = op.nakliyeFirma || '';
+      document.getElementById('op_nakliyeFtNo').value = op.nakliyeFaturaNo || '';
+      document.getElementById('op_yukNo').value = op.yukNo || '';
+      document.getElementById('op_seferNo').value = op.seferNo || '';
+      document.getElementById('op_palet').value = op.palet || '';
+      document.getElementById('op_kilo').value = op.kilo || '';
+      document.getElementById('op_paraBirimi').value = op.paraBirimi || 'EUR';
+      document.getElementById('op_nalun').value = op.nalunTutar || 0;
+      document.getElementById('op_ydg').value = op.ydgTutar || 0;
+      document.getElementById('op_komisyon').value = op.komisyonTutar || 0;
+      document.getElementById('op_kur').value = op.kur || 0;
+      document.getElementById('op_odemeTarih').value = op.odemeTarih || '';
+      document.getElementById('op_odemeTutar').value = op.odemeTutar || 0;
+      document.getElementById('op_tahsilEdildi').checked = op.tahsilEdildi;
+
+      window.opHesapla();
+      new bootstrap.Modal(document.getElementById('operasyonModal')).show();
+  };
+
+  window.operasyonKaydet = async function() {
+      window.opHesapla(); // Verileri kaydetmeden önce son kez hesapla
+      
+      const id = document.getElementById('op_id').value;
+      const data = {
+          cpaTarih: document.getElementById('op_cpaTarih').value,
+          cpaFaturaNo: document.getElementById('op_cpaNo').value,
+          firma: document.getElementById('op_firma').value,
+          adres: document.getElementById('op_adres').value,
+          sevkTarihi: document.getElementById('op_sevkTarihi').value,
+          ihracatFaturaNo: document.getElementById('op_ihracatFt').value,
+          nakliyeFirma: document.getElementById('op_nakliyeFirma').value,
+          nakliyeFaturaNo: document.getElementById('op_nakliyeFtNo').value,
+          yukNo: document.getElementById('op_yukNo').value,
+          seferNo: document.getElementById('op_seferNo').value,
+          palet: parseInt(document.getElementById('op_palet').value) || 0,
+          kilo: parseFloat(document.getElementById('op_kilo').value) || 0,
+          paraBirimi: document.getElementById('op_paraBirimi').value,
+          nalunTutar: parseFloat(document.getElementById('op_nalun').value) || 0,
+          ydgTutar: parseFloat(document.getElementById('op_ydg').value) || 0,
+          komisyonTutar: parseFloat(document.getElementById('op_komisyon').value) || 0,
+          kur: parseFloat(document.getElementById('op_kur').value) || 0,
+          totalTutar: parseFloat(document.getElementById('op_total').value) || 0,
+          tlTutar: parseFloat(document.getElementById('op_tl').value) || 0,
+          yuzde: parseFloat(document.getElementById('op_yuzde').value) || 0,
+          odemeTarih: document.getElementById('op_odemeTarih').value,
+          odemeTutar: parseFloat(document.getElementById('op_odemeTutar').value) || 0,
+          tahsilEdildi: document.getElementById('op_tahsilEdildi').checked,
+          islemZamani: serverTimestamp()
+      };
+
+      try {
+          if(id) await updateDoc(doc(db, "operasyonlar", id), data);
+          else await addDoc(collection(db, "operasyonlar"), data);
+          bootstrap.Modal.getInstance(document.getElementById('operasyonModal')).hide();
+      } catch(e) { alert("Hata: " + e.message); }
+  };
+
+  window.operasyonSil = async function(id) {
+      if(!confirm("Bu lojistik operasyon kaydını silmek istediğinize emin misiniz?")) return;
+      try { await deleteDoc(doc(db, "operasyonlar", id)); } catch(e) { alert("Hata: " + e.message); }
+  };
+
+  // MÜŞTERİYE WHATSAPP'TAN ATILACAK ÖZET KART (Resme Uygun HTML)
+  window.operasyonOzetAc = function(id) {
+      const op = operasyonListesi.find(x => x.id === id);
+      if(!op) return;
+
+      let sembol = op.paraBirimi === 'USD' ? '$' : '€';
+      
+      let html = `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 15px; border: 1px solid #ddd; padding: 20px; border-radius: 8px;">
+          <!-- Üst Firma Bilgisi -->
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+              <tr style="background-color: #f1f5f9;">
+                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b; width: 30%;">Firma</td>
+                  <td style="padding: 10px 15px; font-weight: bold; font-size: 18px; color:#0f172a;">${op.firma || '-'}</td>
+              </tr>
+              <tr>
+                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Adres</td>
+                  <td style="padding: 10px 15px; color: #0ea5e9; font-style: italic;">${op.adres || '-'}</td>
+              </tr>
+          </table>
+
+          <!-- Hesaplamalar -->
+          <table style="width: 100%; border-collapse: collapse; text-align: center; margin-bottom: 25px; background-color: #f1f5f9;">
+              <tr>
+                  <td style="padding: 10px; color: #f97316; font-weight: bold; font-size: 16px;">Nalun</td>
+                  <td style="padding: 10px; color: #f97316; font-weight: bold; font-size: 16px;">YDG</td>
+                  <td style="padding: 10px; color: #f97316; font-weight: bold; font-size: 16px;">Komisyon</td>
+                  <td style="padding: 10px; color: #f97316; font-weight: bold; font-size: 16px;">Total</td>
+              </tr>
+              <tr>
+                  <td style="padding: 10px; color: #22c55e; font-weight: bold; font-size: 16px;">${op.nalunTutar ? op.nalunTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0'} ${sembol}</td>
+                  <td style="padding: 10px; color: #22c55e; font-weight: bold; font-size: 16px;">${op.ydgTutar > 0 ? op.ydgTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' ' + sembol : ''}</td>
+                  <td style="padding: 10px; color: #22c55e; font-weight: bold; font-size: 16px;">${op.komisyonTutar ? op.komisyonTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0'} ${sembol}</td>
+                  <td style="padding: 10px; color: #22c55e; font-weight: bold; font-size: 16px;">${op.totalTutar ? op.totalTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0'} ${sembol}</td>
+              </tr>
+          </table>
+
+          <!-- Operasyon Detayları -->
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;">
+              <tr style="background-color: #f1f5f9;">
+                  <td style="padding: 10px 15px; color: #ef4444; font-weight: bold; width: 30%; font-size: 16px;">TCT Fatura No</td>
+                  <td style="padding: 10px 15px; color: #ef4444; font-size: 16px; font-weight: 500;">${op.nakliyeFaturaNo || '-'}</td>
+                  <td></td>
+                  <td></td>
+              </tr>
+              <tr>
+                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Palet</td>
+                  <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.palet || '-'}</td>
+              </tr>
+              <tr style="background-color: #f1f5f9;">
+                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Kilo</td>
+                  <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.kilo ? op.kilo.toLocaleString('tr-TR') : '-'}</td>
+              </tr>
+              <tr>
+                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Yük No</td>
+                  <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.yukNo || '-'}</td>
+              </tr>
+              <tr style="background-color: #f1f5f9;">
+                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Sefer No</td>
+                  <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.seferNo || '-'}</td>
+              </tr>
+              <tr>
+                  <td style="padding: 10px 15px; color: #3b82f6; font-weight: bold; font-size: 16px;">CPA Fatura No</td>
+                  <td style="padding: 10px 15px; color: #3b82f6; font-weight: bold; font-size: 16px;">${op.cpaFaturaNo || '-'}</td>
+                  <td style="padding: 10px 15px; color: #ef4444; font-weight: bold; text-align: right; font-size: 16px;">₺${op.tlTutar ? op.tlTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0,00'}</td>
+                  <td style="padding: 10px 15px; color: #3b82f6; font-weight: bold; text-align: right; font-size: 16px;">${op.komisyonTutar ? op.komisyonTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0'} ${sembol}</td>
+              </tr>
+          </table>
+
+          <!-- Ödeme Tahsilat -->
+          <table style="width: 100%; border-collapse: collapse; text-align: center; border: 2px solid #64748b;">
+              <tr>
+                  <td style="padding: 12px; color: #a855f7; font-weight: bold; border-right: 1px solid #94a3b8; width: 25%; font-size: 16px;">ADS Ödeme</td>
+                  <td style="padding: 12px; color: #a855f7; font-weight: 500; border-right: 1px solid #94a3b8; width: 25%; font-size: 16px;">${op.odemeTarih ? op.odemeTarih.split('-').reverse().join('.') : ''}</td>
+                  <td style="padding: 12px; border-right: 1px solid #94a3b8; width: 25%;"></td>
+                  <td style="padding: 12px; color: #a855f7; font-weight: bold; width: 25%; font-size: 16px;">${op.odemeTutar > 0 ? op.odemeTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' ' + sembol : ''}</td>
+              </tr>
+          </table>
+      </div>
+      `;
+      
+      document.getElementById('whatsapp_kart_alani').innerHTML = html;
+      new bootstrap.Modal(document.getElementById('opOzetModal')).show();
+  };
 </script>
 
 <script>
@@ -4694,6 +4931,129 @@ window.islemDuzenleAc = function(id) {
             let ilkGun = new Date(bugun.getFullYear(), bugun.getMonth(), 1).toISOString().split('T')[0];
             let sonGun = bugun.toISOString().split('T')[0];
             setTimeout(() => { document.getElementById('r_bas').value = ilkGun; document.getElementById('r_bit').value = sonGun; }, 50);
+        }
+
+        else if(sayfa === 'operasyon') {
+            mainContent.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2>Operasyon ve Komisyon Takibi</h2>
+                    <button class="btn btn-primary shadow-sm" onclick="operasyonEkleAc()">
+                        <i class="fas fa-plus"></i> Yeni Sefer Ekle
+                    </button>
+                </div>
+                
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="table-responsive bg-white rounded p-2">
+                        <table class="table table-hover align-middle mb-0 table-sm text-nowrap" style="font-size: 0.75rem;">
+                            <thead class="table-light text-muted">
+                                <tr>
+                                    <th>CPA Tarih</th><th>CPA No</th><th>Sevk Tarihi</th><th>İhracat Ft</th>
+                                    <th>Firma</th><th>Nakliye</th><th>Nakliye Ft No</th><th>Yük No</th><th>Sefer No</th>
+                                    <th class="text-end">Nalun</th><th class="text-end text-success">Komisyon</th>
+                                    <th class="text-end fw-bold">Total</th><th class="text-end">Kur</th>
+                                    <th class="text-end text-danger">TL Karşılığı</th><th class="text-center">%</th>
+                                    <th class="text-center">İşlemler</th>
+                                </tr>
+                            </thead>
+                            <tbody id="operasyonTabloGövdesi"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- OPERASYON EKLEME MODALI -->
+                <div class="modal fade" id="operasyonModal" tabindex="-1">
+                    <div class="modal-dialog modal-xl">
+                        <div class="modal-content">
+                            <div class="modal-header bg-dark text-white">
+                                <h5 class="modal-title"><i class="fas fa-truck me-2"></i>Operasyon / Komisyon İşle</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body p-4 bg-light">
+                                <form id="operasyonForm">
+                                    <input type="hidden" id="op_id">
+                                    <h6 class="text-primary fw-bold border-bottom pb-2 mb-3">1. Fatura ve Firma Bilgileri</h6>
+                                    <div class="row mb-3">
+                                        <div class="col-md-3"><label class="form-label small fw-bold">CPA Fatura Tarihi</label><input type="date" class="form-control" id="op_cpaTarih"></div>
+                                        <div class="col-md-3"><label class="form-label small fw-bold text-primary">CPA Fatura No</label><input type="text" class="form-control border-primary" id="op_cpaNo" placeholder="Örn: CPA2026..."></div>
+                                        <div class="col-md-6"><label class="form-label small fw-bold">Firma (Müşteri)</label><input type="text" class="form-control fw-bold" id="op_firma" placeholder="Müşteri Ünvanı"></div>
+                                    </div>
+                                    <div class="row mb-4">
+                                        <div class="col-md-12"><label class="form-label small fw-bold">Firma Açık Adresi (Özet Kartı İçin)</label><input type="text" class="form-control text-primary fst-italic" id="op_adres" placeholder="Örn: Grande-Synthe France"></div>
+                                    </div>
+
+                                    <h6 class="text-danger fw-bold border-bottom pb-2 mb-3">2. Lojistik ve Sevk Bilgileri</h6>
+                                    <div class="row mb-3">
+                                        <div class="col-md-3"><label class="form-label small fw-bold">Sevk Tarihi</label><input type="date" class="form-control" id="op_sevkTarihi"></div>
+                                        <div class="col-md-3"><label class="form-label small fw-bold">İhracat Ft (ADS) No</label><input type="text" class="form-control" id="op_ihracatFt"></div>
+                                        <div class="col-md-3"><label class="form-label small fw-bold">Nakliye Firması</label><input type="text" class="form-control" id="op_nakliyeFirma"></div>
+                                        <div class="col-md-3"><label class="form-label small fw-bold text-danger">Nakliye Fatura No (TCT)</label><input type="text" class="form-control border-danger" id="op_nakliyeFtNo"></div>
+                                    </div>
+                                    <div class="row mb-4">
+                                        <div class="col-md-3"><label class="form-label small fw-bold">Yük No</label><input type="text" class="form-control" id="op_yukNo"></div>
+                                        <div class="col-md-3"><label class="form-label small fw-bold">Sefer No</label><input type="text" class="form-control" id="op_seferNo"></div>
+                                        <div class="col-md-3"><label class="form-label small fw-bold">Palet Miktarı</label><input type="number" class="form-control" id="op_palet"></div>
+                                        <div class="col-md-3"><label class="form-label small fw-bold">Kilo (Ağırlık)</label><input type="number" class="form-control" id="op_kilo" step="0.01"></div>
+                                    </div>
+
+                                    <h6 class="text-success fw-bold border-bottom pb-2 mb-3">3. Finansal ve Komisyon Hesaplamaları</h6>
+                                    <div class="row mb-3">
+                                        <div class="col-md-2">
+                                            <label class="form-label small fw-bold">Para Birimi</label>
+                                            <select class="form-select" id="op_paraBirimi"><option value="EUR">Euro (€)</option><option value="USD">Dolar ($)</option></select>
+                                        </div>
+                                        <div class="col-md-2"><label class="form-label small fw-bold">Nalun</label><input type="number" class="form-control text-success fw-bold" id="op_nalun" step="0.01" onchange="opHesapla()" onkeyup="opHesapla()"></div>
+                                        <div class="col-md-2"><label class="form-label small fw-bold">YDG</label><input type="number" class="form-control text-success fw-bold" id="op_ydg" step="0.01" onchange="opHesapla()" onkeyup="opHesapla()"></div>
+                                        <div class="col-md-2"><label class="form-label small fw-bold">Komisyon</label><input type="number" class="form-control text-success fw-bold" id="op_komisyon" step="0.01" onchange="opHesapla()" onkeyup="opHesapla()"></div>
+                                        <div class="col-md-2"><label class="form-label small fw-bold">Güncel Kur</label><input type="number" class="form-control" id="op_kur" step="0.0001" onchange="opHesapla()" onkeyup="opHesapla()"></div>
+                                        <div class="col-md-2"><label class="form-label small fw-bold">Toplam (€/$)</label><input type="text" class="form-control bg-light fw-bold" id="op_total" readonly></div>
+                                    </div>
+                                    <div class="row mb-4">
+                                        <div class="col-md-3"><label class="form-label small fw-bold text-danger">TL Karşılığı</label><input type="text" class="form-control border-danger text-danger fw-bold bg-light" id="op_tl" readonly></div>
+                                        <div class="col-md-2"><label class="form-label small fw-bold text-success">Komisyon %</label><input type="text" class="form-control border-success text-success fw-bold bg-light" id="op_yuzde" readonly></div>
+                                    </div>
+
+                                    <h6 class="text-warning text-dark fw-bold border-bottom pb-2 mb-3">4. Tahsilat / ADS Ödeme Bilgileri</h6>
+                                    <div class="row mb-2">
+                                        <div class="col-md-3"><label class="form-label small fw-bold">Ödeme Tarihi</label><input type="date" class="form-control border-warning" id="op_odemeTarih"></div>
+                                        <div class="col-md-3"><label class="form-label small fw-bold">Ödenen Tutar</label><input type="number" class="form-control border-warning" id="op_odemeTutar" step="0.01"></div>
+                                        <div class="col-md-6 pt-4">
+                                            <div class="form-check form-switch fs-5">
+                                                <input class="form-check-input" type="checkbox" id="op_tahsilEdildi">
+                                                <label class="form-check-label fs-6 ms-2 pt-1">İşlem Kapandı / Tahsil Edildi</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                                <button type="button" class="btn btn-primary fw-bold px-4" onclick="operasyonKaydet()">Kaydet</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- WHATSAPP / MAİL ÖZET KARTI MODALI -->
+                <div class="modal fade" id="opOzetModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header bg-success text-white">
+                                <h5 class="modal-title"><i class="fab fa-whatsapp me-2"></i>Müşteri Özet Kartı</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body p-4 bg-light d-flex justify-content-center">
+                                <!-- Kart Çıktısı Buraya Gelecek -->
+                                <div id="whatsapp_kart_alani" class="bg-white shadow-sm" style="width: 100%; max-width: 650px;"></div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Kapat</button>
+                                <button type="button" class="btn btn-success fw-bold" onclick="window.print()"><i class="fas fa-print me-2"></i> Yazdır / PDF Kaydet</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            setTimeout(() => { if(typeof window.operasyonlariCiz === 'function') window.operasyonlariCiz(); }, 50);
         }
 
         else if(sayfa === 'gorevler') {
