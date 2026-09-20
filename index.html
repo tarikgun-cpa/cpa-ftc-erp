@@ -169,8 +169,9 @@
   let gorevListesi = [];
   let kunyeVerisi = {};
   let islemListesi = [];
+
   let aiGecmisListesi = [];
-  
+  let personelListesi = [];
   let proformaListesi = [];
   let panoNotlari = [];
   let ozelKurallar = []; // YENİ: Otomatik eşleşme kuralları
@@ -256,14 +257,14 @@
           });
 
           // PERSONELLERİ DİNLE
-          let personelListesi = [];
+          
           onSnapshot(collection(db, "personel"), (snapshot) => {
-              personelListesi = [];
-              snapshot.forEach((doc) => { personelListesi.push({ id: doc.id, ...doc.data() }); });
-              // Boş isimlerden kaynaklanan çökmeyi önlemek için güvenli sıralama
-              personelListesi.sort((a,b) => (a.adSoyad || "").localeCompare(b.adSoyad || ""));
-              if (document.getElementById('personelTabloGövdesi')) { window.personelleriCiz(); }
-          });
+    personelListesi = []; // Sadece içini boşaltıyoruz, let kullanmıyoruz
+    snapshot.forEach((doc) => { personelListesi.push({ id: doc.id, ...doc.data() }); });
+    // Boş isimlerden kaynaklanan çökmeyi önlemek için güvenli sıralama
+    personelListesi.sort((a,b) => (a.adSoyad || "").localeCompare(b.adSoyad || ""));
+    if (document.getElementById('personelTabloGövdesi')) { window.personelleriCiz(); }
+});
 
           // KÜNYE DİNLE
           onSnapshot(doc(db, "ayarlar", "kunye"), (docSnap) => {
