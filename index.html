@@ -1523,14 +1523,20 @@
       let stopajKutusu = document.getElementById('f_stopajOran');
       const stopajOran = stopajKutusu ? parseFloat(stopajKutusu.value) || 0 : 0;
       
-      const kdvTutar = tutar * (kdvOran / 100); 
+      let tevkifatKutusu = document.getElementById('f_tevkifatOran');
+      const tevkifatOran = tevkifatKutusu ? parseFloat(tevkifatKutusu.value) || 0 : 0;
+      
+      const anaKdvTutar = tutar * (kdvOran / 100); 
+      const tevkifatTutar = anaKdvTutar * tevkifatOran;
+      const tahsilEdilecekKdv = anaKdvTutar - tevkifatTutar; // Müşterinin bize ödeyeceği KDV kısmı
+      
       const stopajTutar = tutar * (stopajOran / 100);
       
-      // SMM iskeletinde net ödenen: Brüt - Stopaj + KDV
-      const toplam = (tutar - stopajTutar) + kdvTutar;
+      const toplam = (tutar - stopajTutar) + tahsilEdilecekKdv;
       
-      document.getElementById('f_kdvTutar').value = kdvTutar.toFixed(2); 
+      document.getElementById('f_kdvTutar').value = tahsilEdilecekKdv.toFixed(2); 
       if(document.getElementById('f_stopajTutar')) { document.getElementById('f_stopajTutar').value = stopajTutar.toFixed(2); }
+      if(document.getElementById('f_tevkifatTutar')) { document.getElementById('f_tevkifatTutar').value = tevkifatTutar.toFixed(2); }
       document.getElementById('f_toplam').value = toplam.toFixed(2);
   };
   
@@ -1555,6 +1561,7 @@
       document.getElementById('f_tutar').value = f.tutar; 
       document.getElementById('f_kdvOran').value = f.kdvOran;
       if(document.getElementById('f_stopajOran')) { document.getElementById('f_stopajOran').value = f.stopajOran || 0; }
+      if(document.getElementById('f_tevkifatOran')) { document.getElementById('f_tevkifatOran').value = f.tevkifatOran || 0; }
       
       window.hesaplaKdv();
       document.querySelector("#yeniFaturaModal .modal-title").innerHTML = "Fatura Düzenle";
@@ -1582,6 +1589,7 @@
       document.getElementById('f_tutar').value = f.tutar; 
       document.getElementById('f_kdvOran').value = f.kdvOran;
       if(document.getElementById('f_stopajOran')) { document.getElementById('f_stopajOran').value = f.stopajOran || 0; }
+      if(document.getElementById('f_tevkifatOran')) { document.getElementById('f_tevkifatOran').value = f.tevkifatOran || 0; }
       
       window.hesaplaKdv();
       document.querySelector("#yeniFaturaModal .modal-title").innerHTML = "<i class='fas fa-copy me-2'></i>Fatura Çoğalt (Taslak)";
@@ -1607,16 +1615,17 @@
       const tur = document.getElementById('f_tur').value; const paraBirimi = document.getElementById('f_paraBirimi').value;
       
       let faturaNo = document.getElementById('f_faturaNo').value; 
-      // Fiş ise ve no girilmemişse otomatik no ver, engelleme
       if(tur === 'Fis_OKC' && faturaNo.trim() === '') { faturaNo = 'FIS-' + Math.floor(Math.random() * 100000); }
       
       const tarih = document.getElementById('f_tarih').value;
       const tutar = parseFloat(document.getElementById('f_tutar').value) || 0; 
       const kdvOran = parseFloat(document.getElementById('f_kdvOran').value) || 0;
       const stopajOran = document.getElementById('f_stopajOran') ? (parseFloat(document.getElementById('f_stopajOran').value) || 0) : 0;
+      const tevkifatOran = document.getElementById('f_tevkifatOran') ? (parseFloat(document.getElementById('f_tevkifatOran').value) || 0) : 0;
       
       const kdvTutar = parseFloat(document.getElementById('f_kdvTutar').value) || 0; 
       const stopajTutar = document.getElementById('f_stopajTutar') ? (parseFloat(document.getElementById('f_stopajTutar').value) || 0) : 0;
+      const tevkifatTutar = document.getElementById('f_tevkifatTutar') ? (parseFloat(document.getElementById('f_tevkifatTutar').value) || 0) : 0;
       const toplamTutar = parseFloat(document.getElementById('f_toplam').value) || 0;
       
       const aciklama = document.getElementById('f_aciklama').value || '';
@@ -1642,10 +1651,10 @@
                   const eskiBakiyeIadesi = (eskiFatura.tur === 'Satis' || eskiFatura.tur === 'Ihracat' || eskiFatura.tur === 'YerelSatis') ? -eskiFatura.toplamTutar : eskiFatura.toplamTutar;
                   await updateDoc(doc(db, "cariler", eskiFatura.cariId), { bakiye: increment(eskiBakiyeIadesi) });
               }
-              await updateDoc(doc(db, "faturalar", id), { cariId: cariId, cariUnvan: secilenCari.unvan, faturaNo: faturaNo, tarih: tarih, tur: tur, paraBirimi: paraBirimi, tutar: tutar, kdvOran: kdvOran, stopajOran: stopajOran, stopajTutar: stopajTutar, kdvTutar: kdvTutar, toplamTutar: toplamTutar, aciklama: aciklama, kategori: kategori });
+              await updateDoc(doc(db, "faturalar", id), { cariId: cariId, cariUnvan: secilenCari.unvan, faturaNo: faturaNo, tarih: tarih, tur: tur, paraBirimi: paraBirimi, tutar: tutar, kdvOran: kdvOran, tevkifatOran: tevkifatOran, tevkifatTutar: tevkifatTutar, stopajOran: stopajOran, stopajTutar: stopajTutar, kdvTutar: kdvTutar, toplamTutar: toplamTutar, aciklama: aciklama, kategori: kategori });
               if(tur !== 'Fis_OKC' && cariId !== 'MUHTELIF_SATICI') { await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(yeniBakiyeDegisimi) }); }
           } else {
-              await addDoc(collection(db, "faturalar"), { cariId: cariId, cariUnvan: secilenCari.unvan, faturaNo: faturaNo, tarih: tarih, tur: tur, paraBirimi: paraBirimi, tutar: tutar, kdvOran: kdvOran, stopajOran: stopajOran, stopajTutar: stopajTutar, kdvTutar: kdvTutar, toplamTutar: toplamTutar, aciklama: aciklama, kategori: kategori, durum: tur === 'Fis_OKC' ? 'Ödendi' : 'Bekliyor', islemTarihi: serverTimestamp() });
+              await addDoc(collection(db, "faturalar"), { cariId: cariId, cariUnvan: secilenCari.unvan, faturaNo: faturaNo, tarih: tarih, tur: tur, paraBirimi: paraBirimi, tutar: tutar, kdvOran: kdvOran, tevkifatOran: tevkifatOran, tevkifatTutar: tevkifatTutar, stopajOran: stopajOran, stopajTutar: stopajTutar, kdvTutar: kdvTutar, toplamTutar: toplamTutar, aciklama: aciklama, kategori: kategori, durum: tur === 'Fis_OKC' ? 'Ödendi' : 'Bekliyor', islemTarihi: serverTimestamp() });
               
               if (tur === 'Fis_OKC') {
                   await addDoc(collection(db, "hesapHareketleri"), { bankaId: bankaId, cariId: cariId, tur: 'Odeme', tutar: toplamTutar, aciklama: `Fiş/ÖKC Harcaması (${kategori})`, tarih: new Date(tarih) });
@@ -1658,7 +1667,6 @@
           document.getElementById('yeniFaturaForm').reset(); document.getElementById('f_id').value = '';
       } catch (error) { alert("Hata: " + error.message); } finally { kaydetBtn.innerHTML = "Faturayı İşle"; kaydetBtn.disabled = false; if(typeof window.fisSecimiKontrol === 'function') window.fisSecimiKontrol(); }
   };
-
   // ---------------- BANKA VE KASA İŞLEMLERİ ----------------
   window.bankalariCiz = function() {
       const bTbody = document.getElementById('bankaTabloGövdesi');
@@ -3616,6 +3624,18 @@ window.islemDuzenleAc = function(id) {
   };
 
   // ---------------- OPERASYON VE KOMİSYON İŞLEMLERİ ----------------
+  window.opTasimaTuruDegisti = function() {
+      let tur = document.getElementById('op_tasimaTuru').value;
+      
+      document.querySelectorAll('.op_kara_alan').forEach(el => el.classList.add('d-none'));
+      document.querySelectorAll('.op_hava_alan').forEach(el => el.classList.add('d-none'));
+      document.querySelectorAll('.op_deniz_alan').forEach(el => el.classList.add('d-none'));
+
+      if(tur === 'Karayolu') document.querySelectorAll('.op_kara_alan').forEach(el => el.classList.remove('d-none'));
+      else if(tur === 'Havayolu') document.querySelectorAll('.op_hava_alan').forEach(el => el.classList.remove('d-none'));
+      else if(tur === 'Denizyolu') document.querySelectorAll('.op_deniz_alan').forEach(el => el.classList.remove('d-none'));
+  };
+
   window.opHesapla = function() {
       let nalun = parseFloat(document.getElementById('op_nalun').value) || 0;
       let ydg = parseFloat(document.getElementById('op_ydg').value) || 0;
@@ -3636,29 +3656,44 @@ window.islemDuzenleAc = function(id) {
       if(!tbody) return;
       tbody.innerHTML = '';
       
+      let toplamTl = 0; let toplamEur = 0; let bekleyenTl = 0;
+      let nakliyeciPuanlari = {};
+
       operasyonListesi.forEach(op => {
           let sembol = op.paraBirimi === 'USD' ? '$' : '€';
           
+          toplamTl += (op.tlTutar || 0);
+          if(op.paraBirimi === 'EUR') toplamEur += (op.komisyonTutar || 0);
+          if(!op.tahsilEdildi) bekleyenTl += (op.tlTutar || 0);
+
+          if(op.nakliyeFirma) {
+              nakliyeciPuanlari[op.nakliyeFirma] = (nakliyeciPuanlari[op.nakliyeFirma] || 0) + (op.tlTutar || 0);
+          }
+
           // Fatura Numarasından Tıklanabilir Link Oluştur (CPA Faturası Varsa Eşleştirir)
           let fBul = faturaListesi.find(f => f.faturaNo === op.cpaFaturaNo);
           let cpaLinkHtml = fBul 
               ? `<a href="#" onclick="sayfaYukle('faturalar'); setTimeout(() => faturaDuzenleAc('${fBul.id}'), 300); return false;" class="text-primary fw-bold text-decoration-underline" title="Faturaya Git">${op.cpaFaturaNo}</a>` 
               : `<span class="text-dark">${op.cpaFaturaNo || '-'}</span>`;
 
-          let checkIcon = op.tahsilEdildi ? '<i class="fas fa-check text-success fs-6"></i>' : '<i class="fas fa-clock text-warning"></i>';
           let rowColor = op.tahsilEdildi ? '' : 'bg-warning bg-opacity-10';
+          let ikon = op.tasimaTuru === 'Denizyolu' ? '<i class="fas fa-ship text-primary" title="Deniz"></i>' : (op.tasimaTuru === 'Havayolu' ? '<i class="fas fa-plane text-info" title="Hava"></i>' : '<i class="fas fa-truck text-secondary" title="Kara"></i>');
+          
+          let tasimaOzet = '';
+          if(op.tasimaTuru === 'Denizyolu') tasimaOzet = op.bookingNo || op.konteynerNo || op.gemiAdi || '-';
+          else if(op.tasimaTuru === 'Havayolu') tasimaOzet = op.ucusNo || '-';
+          else tasimaOzet = (op.yukNo || '') + ' ' + (op.seferNo || '');
 
           let tr = `
               <tr class="${rowColor}">
                   <td>${op.cpaTarih ? op.cpaTarih.split('-').reverse().join('.') : '-'}</td>
                   <td>${cpaLinkHtml}</td>
-                  <td>${op.sevkTarihi ? op.sevkTarihi.split('-').reverse().join('.') : '-'}</td>
+                  <td>${ikon} ${op.tasimaTuru || 'Karayolu'}</td>
+                  <td><small>${tasimaOzet}</small></td>
                   <td>${op.ihracatFaturaNo || '-'}</td>
                   <td class="fw-bold text-dark">${op.firma || '-'}</td>
                   <td>${op.nakliyeFirma || '-'}</td>
                   <td class="text-danger fw-medium">${op.nakliyeFaturaNo || '-'}</td>
-                  <td>${op.yukNo || '-'}</td>
-                  <td>${op.seferNo || '-'}</td>
                   <td class="text-end">${op.nalunTutar ? op.nalunTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0,00'} ${sembol}</td>
                   <td class="text-end text-success fw-bold">${op.komisyonTutar ? op.komisyonTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0,00'} ${sembol}</td>
                   <td class="text-end fw-bold">${op.totalTutar ? op.totalTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0,00'} ${sembol}</td>
@@ -3675,12 +3710,23 @@ window.islemDuzenleAc = function(id) {
           tbody.innerHTML += tr;
       });
       if(operasyonListesi.length === 0) tbody.innerHTML = '<tr><td colspan="16" class="text-center text-muted py-4">Kayıtlı operasyon bulunmuyor.</td></tr>';
+
+      // Dashboard Rakamlarını Güncelle
+      if(document.getElementById('op_dash_toplam_tl')) document.getElementById('op_dash_toplam_tl').innerText = toplamTl.toLocaleString('tr-TR', {minimumFractionDigits: 2}) + ' ₺';
+      if(document.getElementById('op_dash_toplam_eur')) document.getElementById('op_dash_toplam_eur').innerText = toplamEur.toLocaleString('tr-TR', {minimumFractionDigits: 2}) + ' €';
+      if(document.getElementById('op_dash_bekleyen_tl')) document.getElementById('op_dash_bekleyen_tl').innerText = bekleyenTl.toLocaleString('tr-TR', {minimumFractionDigits: 2}) + ' ₺';
+      
+      let bestCarrier = '-'; let maxVal = 0;
+      for (const [key, value] of Object.entries(nakliyeciPuanlari)) { if (value > maxVal) { maxVal = value; bestCarrier = key; } }
+      if(document.getElementById('op_dash_best_carrier')) document.getElementById('op_dash_best_carrier').innerText = bestCarrier;
   };
 
   window.operasyonEkleAc = function() {
       document.getElementById('operasyonForm').reset();
       document.getElementById('op_id').value = '';
       document.getElementById('op_paraBirimi').value = 'EUR';
+      document.getElementById('op_tasimaTuru').value = 'Karayolu';
+      window.opTasimaTuruDegisti();
       new bootstrap.Modal(document.getElementById('operasyonModal')).show();
   };
 
@@ -3689,6 +3735,7 @@ window.islemDuzenleAc = function(id) {
       if(!op) return;
       
       document.getElementById('op_id').value = op.id;
+      document.getElementById('op_tasimaTuru').value = op.tasimaTuru || 'Karayolu';
       document.getElementById('op_cpaTarih').value = op.cpaTarih || '';
       document.getElementById('op_cpaNo').value = op.cpaFaturaNo || '';
       document.getElementById('op_firma').value = op.firma || '';
@@ -3697,8 +3744,14 @@ window.islemDuzenleAc = function(id) {
       document.getElementById('op_ihracatFt').value = op.ihracatFaturaNo || '';
       document.getElementById('op_nakliyeFirma').value = op.nakliyeFirma || '';
       document.getElementById('op_nakliyeFtNo').value = op.nakliyeFaturaNo || '';
+      
       document.getElementById('op_yukNo').value = op.yukNo || '';
       document.getElementById('op_seferNo').value = op.seferNo || '';
+      document.getElementById('op_ucusNo').value = op.ucusNo || '';
+      document.getElementById('op_bookingNo').value = op.bookingNo || '';
+      document.getElementById('op_gemiAdi').value = op.gemiAdi || '';
+      document.getElementById('op_konteynerNo').value = op.konteynerNo || '';
+
       document.getElementById('op_palet').value = op.palet || '';
       document.getElementById('op_kilo').value = op.kilo || '';
       document.getElementById('op_paraBirimi').value = op.paraBirimi || 'EUR';
@@ -3710,6 +3763,7 @@ window.islemDuzenleAc = function(id) {
       document.getElementById('op_odemeTutar').value = op.odemeTutar || 0;
       document.getElementById('op_tahsilEdildi').checked = op.tahsilEdildi;
 
+      window.opTasimaTuruDegisti();
       window.opHesapla();
       new bootstrap.Modal(document.getElementById('operasyonModal')).show();
   };
@@ -3719,6 +3773,7 @@ window.islemDuzenleAc = function(id) {
       
       const id = document.getElementById('op_id').value;
       const data = {
+          tasimaTuru: document.getElementById('op_tasimaTuru').value,
           cpaTarih: document.getElementById('op_cpaTarih').value,
           cpaFaturaNo: document.getElementById('op_cpaNo').value,
           firma: document.getElementById('op_firma').value,
@@ -3729,6 +3784,10 @@ window.islemDuzenleAc = function(id) {
           nakliyeFaturaNo: document.getElementById('op_nakliyeFtNo').value,
           yukNo: document.getElementById('op_yukNo').value,
           seferNo: document.getElementById('op_seferNo').value,
+          ucusNo: document.getElementById('op_ucusNo').value,
+          bookingNo: document.getElementById('op_bookingNo').value,
+          gemiAdi: document.getElementById('op_gemiAdi').value,
+          konteynerNo: document.getElementById('op_konteynerNo').value,
           palet: parseInt(document.getElementById('op_palet').value) || 0,
           kilo: parseFloat(document.getElementById('op_kilo').value) || 0,
           paraBirimi: document.getElementById('op_paraBirimi').value,
@@ -3749,7 +3808,7 @@ window.islemDuzenleAc = function(id) {
           if(id) await updateDoc(doc(db, "operasyonlar", id), data);
           else await addDoc(collection(db, "operasyonlar"), data);
 
-          // YENİ: İlgili faturayı bul ve açıklamasını otomatik güncelle
+          // OTOMATİK FATURA AÇIKLAMA GÜNCELLEMESİ
           if (data.cpaFaturaNo && data.cpaFaturaNo.trim() !== "") {
               let sembol = data.paraBirimi === 'USD' ? '$' : '€';
               let otoAciklama = `${data.firma} Komisyon: ${data.komisyonTutar.toLocaleString('tr-TR')} ${sembol} x Kur: ${data.kur}`;
@@ -3768,17 +3827,52 @@ window.islemDuzenleAc = function(id) {
       try { await deleteDoc(doc(db, "operasyonlar", id)); } catch(e) { alert("Hata: " + e.message); }
   };
 
- // MÜŞTERİYE WHATSAPP'TAN ATILACAK ÖZET KART (Resme Uygun HTML)
   window.operasyonOzetAc = function(id) {
       const op = operasyonListesi.find(x => x.id === id);
       if(!op) return;
 
       let sembol = op.paraBirimi === 'USD' ? '$' : '€';
+      let v = kunyeVerisi;
       
+      let ozelAlanlarHtml = '';
+      if (op.tasimaTuru === 'Denizyolu') {
+          ozelAlanlarHtml = `
+              <tr style="background-color: #f1f5f9;">
+                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Booking No</td>
+                  <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.bookingNo || '-'}</td>
+              </tr>
+              <tr>
+                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Gemi Adı</td>
+                  <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.gemiAdi || '-'}</td>
+              </tr>
+              <tr style="background-color: #f1f5f9;">
+                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Konteyner No</td>
+                  <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.konteynerNo || '-'}</td>
+              </tr>
+          `;
+      } else if (op.tasimaTuru === 'Havayolu') {
+          ozelAlanlarHtml = `
+              <tr style="background-color: #f1f5f9;">
+                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Uçuş No (AWB)</td>
+                  <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.ucusNo || '-'}</td>
+              </tr>
+          `;
+      } else { // Karayolu
+          ozelAlanlarHtml = `
+              <tr style="background-color: #f1f5f9;">
+                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Yük No</td>
+                  <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.yukNo || '-'}</td>
+              </tr>
+              <tr>
+                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Sefer No</td>
+                  <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.seferNo || '-'}</td>
+              </tr>
+          `;
+      }
+
       let html = `
       <div style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 15px; border: 1px solid #ddd; padding: 20px; border-radius: 8px;">
-          
-          <!-- YENİ: LOGO ALANI -->
+          <!-- LOGO ALANI -->
           <div style="text-align: center; margin-bottom: 20px;">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 90" style="max-width: 220px; height: auto;">
                   <text x="0" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="800" fill="#1e293b" letter-spacing="-4">CPA</text>
@@ -3825,7 +3919,6 @@ window.islemDuzenleAc = function(id) {
                   <td></td>
                   <td></td>
               </tr>
-              <!-- YENİ: Nakliye Firması -->
               <tr>
                   <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Nakliye Firması</td>
                   <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.nakliyeFirma || '-'}</td>
@@ -3838,15 +3931,10 @@ window.islemDuzenleAc = function(id) {
                   <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Kilo</td>
                   <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.kilo ? op.kilo.toLocaleString('tr-TR') : '-'}</td>
               </tr>
-              <tr style="background-color: #f1f5f9;">
-                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Yük No</td>
-                  <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.yukNo || '-'}</td>
-              </tr>
+              
+              ${ozelAlanlarHtml}
+
               <tr>
-                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Sefer No</td>
-                  <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.seferNo || '-'}</td>
-              </tr>
-              <tr style="background-color: #f1f5f9;">
                   <td style="padding: 10px 15px; color: #3b82f6; font-weight: bold; font-size: 16px;">CPA Fatura No</td>
                   <td style="padding: 10px 15px; color: #3b82f6; font-weight: bold; font-size: 16px;">${op.cpaFaturaNo || '-'}</td>
                   <td style="padding: 10px 15px; color: #ef4444; font-weight: bold; text-align: right; font-size: 16px;">₺${op.tlTutar ? op.tlTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0,00'}</td>
@@ -4219,7 +4307,7 @@ window.islemDuzenleAc = function(id) {
                                     </div>
                                     <h6 class="mt-4 border-bottom pb-2">Tutar ve Vergi Bilgileri</h6>
                                     <div class="row mb-3">
-                                        <div class="col-md-3">
+                                        <div class="col-md-2">
                                             <label class="form-label">Para Birimi *</label>
                                             <select class="form-select" id="f_paraBirimi">
                                                 <option value="TRY">Türk Lirası (₺)</option>
@@ -4227,28 +4315,39 @@ window.islemDuzenleAc = function(id) {
                                                 <option value="EUR">Euro (€)</option>
                                             </select>
                                         </div>
-                                        <div class="col-md-3"><label class="form-label">Tutar (Brüt / Matrah) *</label><input type="number" class="form-control" id="f_tutar" onkeyup="hesaplaKdv()" onchange="hesaplaKdv()" step="0.01"></div>
-                                        <div class="col-md-3">
-                                            <label class="form-label">KDV Oranı (%)</label>
+                                        <div class="col-md-3"><label class="form-label">Tutar (Matrah) *</label><input type="number" class="form-control" id="f_tutar" onkeyup="hesaplaKdv()" onchange="hesaplaKdv()" step="0.01"></div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">KDV (%)</label>
                                             <select class="form-select" id="f_kdvOran" onchange="hesaplaKdv()">
-                                                <option value="0">0% (İhracat / İstisna)</option>
-                                                <option value="20">20% (Genel KDV)</option>
-                                                <option value="10">10% (İndirimli KDV)</option>
-                                                <option value="1">1% (Özel KDV)</option>
+                                                <option value="0">0%</option>
+                                                <option value="20">20%</option>
+                                                <option value="10">10%</option>
+                                                <option value="1">1%</option>
                                             </select>
                                         </div>
                                         <div class="col-md-3">
-                                            <label class="form-label text-danger">Stopaj Kesintisi (%)</label>
+                                            <label class="form-label text-warning text-dark">KDV Tevkifatı (Satış)</label>
+                                            <select class="form-select border-warning" id="f_tevkifatOran" onchange="hesaplaKdv()">
+                                                <option value="0">Tevkifat Yok</option>
+                                                <option value="0.2">2/10 Tevkifat</option>
+                                                <option value="0.5">5/10 Tevkifat</option>
+                                                <option value="0.7">7/10 Tevkifat</option>
+                                                <option value="0.9">9/10 Tevkifat</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label text-danger">Stopaj (%)</label>
                                             <select class="form-select" id="f_stopajOran" onchange="hesaplaKdv()">
-                                                <option value="0">0% (Stopaj Yok)</option>
-                                                <option value="20">20% (SMM Standart Stopaj)</option>
+                                                <option value="0">0%</option>
+                                                <option value="20">20%</option>
                                             </select>
                                         </div>
                                     </div>
                                     <div class="row mb-3">
-                                        <div class="col-md-4"><label class="form-label text-muted small">Stopaj (Kesilen)</label><input type="text" class="form-control bg-light px-1 text-danger" id="f_stopajTutar" readonly value="0.00"></div>
-                                        <div class="col-md-4"><label class="form-label text-muted small">KDV Tutarı</label><input type="text" class="form-control bg-light px-1" id="f_kdvTutar" readonly></div>
-                                        <div class="col-md-4"><label class="form-label fw-bold">Ödenecek Net Toplam</label><input type="text" class="form-control border-success text-success fw-bold text-end" id="f_toplam" readonly></div>
+                                        <div class="col-md-3"><label class="form-label text-muted small">Stopaj (Kesilen)</label><input type="text" class="form-control bg-light px-1 text-danger" id="f_stopajTutar" readonly value="0.00"></div>
+                                        <div class="col-md-3"><label class="form-label text-muted small">Tevkifat Kesintisi</label><input type="text" class="form-control bg-light px-1 text-warning text-dark" id="f_tevkifatTutar" readonly value="0.00"></div>
+                                        <div class="col-md-3"><label class="form-label text-muted small">Tahsil Edilecek KDV</label><input type="text" class="form-control bg-light px-1" id="f_kdvTutar" readonly></div>
+                                        <div class="col-md-3"><label class="form-label fw-bold">Ödenecek Net Toplam</label><input type="text" class="form-control border-success text-success fw-bold text-end" id="f_toplam" readonly></div>
                                     </div>
                                 </form>
                             </div>
@@ -4970,14 +5069,49 @@ window.islemDuzenleAc = function(id) {
                         <i class="fas fa-plus"></i> Yeni Sefer Ekle
                     </button>
                 </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card shadow-sm border-0 border-start border-success border-4">
+                            <div class="card-body p-3">
+                                <h6 class="text-muted small fw-bold text-uppercase">Toplam Tahmini TL Hacmi</h6>
+                                <h4 class="mb-0 fw-bold text-success" id="op_dash_toplam_tl">0,00 ₺</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card shadow-sm border-0 border-start border-info border-4">
+                            <div class="card-body p-3">
+                                <h6 class="text-muted small fw-bold text-uppercase">Toplam EUR Komisyon</h6>
+                                <h4 class="mb-0 fw-bold text-info" id="op_dash_toplam_eur">0,00 €</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card shadow-sm border-0 border-start border-warning border-4">
+                            <div class="card-body p-3">
+                                <h6 class="text-muted small fw-bold text-uppercase">Bekleyen Tahsilat (TL)</h6>
+                                <h4 class="mb-0 fw-bold text-warning text-dark" id="op_dash_bekleyen_tl">0,00 ₺</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card shadow-sm border-0 border-start border-primary border-4">
+                            <div class="card-body p-3">
+                                <h6 class="text-muted small fw-bold text-uppercase">En Aktif Nakliyeci</h6>
+                                <h5 class="mb-0 fw-bold text-primary text-truncate" id="op_dash_best_carrier">-</h5>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 
                 <div class="card shadow-sm border-0 mb-4">
                     <div class="table-responsive bg-white rounded p-2">
                         <table class="table table-hover align-middle mb-0 table-sm text-nowrap" style="font-size: 0.75rem;">
                             <thead class="table-light text-muted">
                                 <tr>
-                                    <th>CPA Tarih</th><th>CPA No</th><th>Sevk Tarihi</th><th>İhracat Ft</th>
-                                    <th>Firma</th><th>Nakliye</th><th>Nakliye Ft No</th><th>Yük No</th><th>Sefer No</th>
+                                    <th>CPA Tarih</th><th>CPA No</th><th>Tür</th><th>Sevk/Booking</th><th>İhracat Ft</th>
+                                    <th>Firma</th><th>Nakliye</th><th>Yük/Uçuş/Konteyner</th>
                                     <th class="text-end">Nalun</th><th class="text-end text-success">Komisyon</th>
                                     <th class="text-end fw-bold">Total</th><th class="text-end">Kur</th>
                                     <th class="text-end text-danger">TL Karşılığı</th><th class="text-center">%</th>
@@ -5000,11 +5134,20 @@ window.islemDuzenleAc = function(id) {
                             <div class="modal-body p-4 bg-light">
                                 <form id="operasyonForm">
                                     <input type="hidden" id="op_id">
-                                    <h6 class="text-primary fw-bold border-bottom pb-2 mb-3">1. Fatura ve Firma Bilgileri</h6>
+                                    
+                                    <h6 class="text-primary fw-bold border-bottom pb-2 mb-3">1. Taşıma Türü ve Firma Bilgileri</h6>
                                     <div class="row mb-3">
+                                        <div class="col-md-3">
+                                            <label class="form-label small fw-bold text-primary">Taşıma Türü</label>
+                                            <select class="form-select border-primary fw-bold" id="op_tasimaTuru" onchange="opTasimaTuruDegisti()">
+                                                <option value="Karayolu">Karayolu (TIR)</option>
+                                                <option value="Denizyolu">Denizyolu (Gemi)</option>
+                                                <option value="Havayolu">Havayolu (Uçak)</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3"><label class="form-label small fw-bold">Firma (Müşteri)</label><input type="text" class="form-control fw-bold" id="op_firma" placeholder="Müşteri Ünvanı"></div>
                                         <div class="col-md-3"><label class="form-label small fw-bold">CPA Fatura Tarihi</label><input type="date" class="form-control" id="op_cpaTarih"></div>
                                         <div class="col-md-3"><label class="form-label small fw-bold text-primary">CPA Fatura No</label><input type="text" class="form-control border-primary" id="op_cpaNo" placeholder="Örn: CPA2026..."></div>
-                                        <div class="col-md-6"><label class="form-label small fw-bold">Firma (Müşteri)</label><input type="text" class="form-control fw-bold" id="op_firma" placeholder="Müşteri Ünvanı"></div>
                                     </div>
                                     <div class="row mb-4">
                                         <div class="col-md-12"><label class="form-label small fw-bold">Firma Açık Adresi (Özet Kartı İçin)</label><input type="text" class="form-control text-primary fst-italic" id="op_adres" placeholder="Örn: Grande-Synthe France"></div>
@@ -5012,16 +5155,28 @@ window.islemDuzenleAc = function(id) {
 
                                     <h6 class="text-danger fw-bold border-bottom pb-2 mb-3">2. Lojistik ve Sevk Bilgileri</h6>
                                     <div class="row mb-3">
-                                        <div class="col-md-3"><label class="form-label small fw-bold">Sevk Tarihi</label><input type="date" class="form-control" id="op_sevkTarihi"></div>
-                                        <div class="col-md-3"><label class="form-label small fw-bold">İhracat Ft (ADS) No</label><input type="text" class="form-control" id="op_ihracatFt"></div>
                                         <div class="col-md-3"><label class="form-label small fw-bold">Nakliye Firması</label><input type="text" class="form-control" id="op_nakliyeFirma"></div>
                                         <div class="col-md-3"><label class="form-label small fw-bold text-danger">Nakliye Fatura No (TCT)</label><input type="text" class="form-control border-danger" id="op_nakliyeFtNo"></div>
-                                    </div>
-                                    <div class="row mb-4">
-                                        <div class="col-md-3"><label class="form-label small fw-bold">Yük No</label><input type="text" class="form-control" id="op_yukNo"></div>
-                                        <div class="col-md-3"><label class="form-label small fw-bold">Sefer No</label><input type="text" class="form-control" id="op_seferNo"></div>
+                                        <div class="col-md-3"><label class="form-label small fw-bold">İhracat Ft (ADS) No</label><input type="text" class="form-control" id="op_ihracatFt"></div>
                                         <div class="col-md-3"><label class="form-label small fw-bold">Palet Miktarı</label><input type="number" class="form-control" id="op_palet"></div>
+                                    </div>
+                                    
+                                    <!-- DİNAMİK ALANLAR (Taşıma türüne göre değişecek) -->
+                                    <div class="row mb-4 bg-white p-3 rounded border">
+                                        <div class="col-md-3"><label class="form-label small fw-bold">Sevk Tarihi</label><input type="date" class="form-control" id="op_sevkTarihi"></div>
                                         <div class="col-md-3"><label class="form-label small fw-bold">Kilo (Ağırlık)</label><input type="number" class="form-control" id="op_kilo" step="0.01"></div>
+                                        
+                                        <!-- Kara -->
+                                        <div class="col-md-3 op_kara_alan"><label class="form-label small fw-bold">Yük No</label><input type="text" class="form-control" id="op_yukNo"></div>
+                                        <div class="col-md-3 op_kara_alan"><label class="form-label small fw-bold">Sefer No</label><input type="text" class="form-control" id="op_seferNo"></div>
+                                        
+                                        <!-- Hava -->
+                                        <div class="col-md-3 op_hava_alan d-none"><label class="form-label small fw-bold">Uçuş No (AWB)</label><input type="text" class="form-control border-info" id="op_ucusNo"></div>
+                                        
+                                        <!-- Deniz -->
+                                        <div class="col-md-3 op_deniz_alan d-none"><label class="form-label small fw-bold">Booking No</label><input type="text" class="form-control border-primary" id="op_bookingNo"></div>
+                                        <div class="col-md-3 op_deniz_alan d-none mt-3"><label class="form-label small fw-bold">Gemi Adı (Vessel)</label><input type="text" class="form-control border-primary" id="op_gemiAdi"></div>
+                                        <div class="col-md-3 op_deniz_alan d-none mt-3"><label class="form-label small fw-bold">Konteyner No</label><input type="text" class="form-control border-primary" id="op_konteynerNo"></div>
                                     </div>
 
                                     <h6 class="text-success fw-bold border-bottom pb-2 mb-3">3. Finansal ve Komisyon Hesaplamaları</h6>
@@ -5084,6 +5239,7 @@ window.islemDuzenleAc = function(id) {
             `;
             setTimeout(() => { if(typeof window.operasyonlariCiz === 'function') window.operasyonlariCiz(); }, 50);
         }
+    
 
         else if(sayfa === 'gorevler') {
             mainContent.innerHTML = `
