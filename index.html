@@ -407,6 +407,7 @@
     let aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
     let aylikVeri = Array(12).fill(null).map(() => ({ gelir: 0, gider: 0 }));
     let giderDagilimi = {};
+    let gelirDagilimi = {};
 
     // 1. Faturalar (Sadece Tedarikçi ve Satışlar - Matrah Üzerinden)
     faturaListesi.forEach(f => {
@@ -419,9 +420,10 @@
             
             if(f.tur === 'Satis' || f.tur === 'Ihracat' || f.tur === 'YerelSatis') {
                 aylikVeri[ayIndex].gelir += tutarTry;
+                let kat = f.kategori || 'Genel Satış';
+                gelirDagilimi[kat] = (gelirDagilimi[kat] || 0) + tutarTry;
             }
             else if(f.tur === 'Alim' || f.tur === 'SMM_Gider' || f.tur === 'Fis_OKC') {
-                // Banka/Fiş dışı standart faturalar
                 if (f.cariId !== 'SISTEM_MAAS' && f.cariId !== 'SISTEM_VERGI' && f.tur !== 'Fis_OKC') {
                     aylikVeri[ayIndex].gider += tutarTry;
                     let kat = f.kategori || 'Tedarikçi Giderleri';
@@ -447,6 +449,8 @@
             if (gercekYon === 'Tahsilat') {
                 if (i.tur === 'Faiz_Gelir' || i.cariId === 'SISTEM_FAIZ') {
                     aylikVeri[ayIndex].gelir += tutarTry;
+                    let katAd = 'Faiz Geliri';
+                    gelirDagilimi[katAd] = (gelirDagilimi[katAd] || 0) + tutarTry;
                 }
             } else {
                 let isGider = false;
@@ -485,7 +489,7 @@
         }
     });
 
-    if(kzHtml === '') kzHtml = '<tr><td colspan="4" class="text-center text-muted small py-3">Bu yıla ait fatura kaydı bulunamadı.</td></tr>';
+    if(kzHtml === '') kzHtml = '<tr><td colspan="4" class="text-center text-muted small py-3">Bu yıla ait veri bulunamadı.</td></tr>';
     else {
         let genelNet = toplamGelir - toplamGider;
         let genelRenk = genelNet > 0 ? 'text-success' : (genelNet < 0 ? 'text-danger' : 'text-dark');
@@ -496,13 +500,11 @@
             <td class="text-end fw-bold ${genelRenk} fs-6">${genelNet > 0 ? '+' : ''}${genelNet.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td>
         </tr>`;
     }
-    document.getElementById('dash_kar_zarar').innerHTML = kzHtml;
+    if(document.getElementById('dash_kar_zarar')) document.getElementById('dash_kar_zarar').innerHTML = kzHtml;
 
-    // Temettü (Kâr Payı) Simülatörü Hesaplaması
     let netKar = toplamGelir - toplamGider;
-    let temettuVergisi = netKar > 0 ? netKar * 0.20 : 0; // Türkiye için genel olarak %20
+    let temettuVergisi = netKar > 0 ? netKar * 0.20 : 0;
     let cekilebilirNakit = netKar > 0 ? netKar - temettuVergisi : 0;
-
     let temettuHtml = `
         <div class="mb-2">
             <span class="text-muted small d-block mb-1">Net Nakit Puan (Tahmini)</span>
@@ -513,10 +515,7 @@
             <span class="text-muted">Vergi Yükü (20%): <strong class="text-danger">-${temettuVergisi.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</strong></span>
         </div>
     `;
-
-    if(document.getElementById('dash_temettu_alani')) {
-        document.getElementById('dash_temettu_alani').innerHTML = temettuHtml;
-    }
+    if(document.getElementById('dash_temettu_alani')) document.getElementById('dash_temettu_alani').innerHTML = temettuHtml;
 
     // Gider Kategorilerini Çiz
     let kategoriHtml = '';
@@ -525,8 +524,7 @@
     let grafikGiderDegerleri = [];
 
     siralama.forEach(([kat, tutar]) => {
-        grafikKategorileri.push(kat);
-        grafikGiderDegerleri.push(tutar);
+        grafikKategorileri.push(kat); grafikGiderDegerleri.push(tutar);
         let yuzde = toplamGider > 0 ? ((tutar / toplamGider) * 100).toFixed(0) : 0;
         kategoriHtml += `
         <div class="mb-3">
@@ -535,18 +533,40 @@
                 <span class="small text-danger fw-bold">${tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</span>
             </div>
             <div class="progress" style="height: 6px; background-color: #f1f5f9;">
-                <div class="progress-bar bg-danger" role="progressbar" style="width: ${yuzde}%" aria-valuenow="${yuzde}" aria-valuemin="0" aria-valuemax="100"></div>
+                <div class="progress-bar bg-danger" role="progressbar" style="width: ${yuzde}%"></div>
             </div>
         </div>`;
     });
     if(kategoriHtml === '') kategoriHtml = '<span class="text-muted small">Bu yıla ait gider verisi bulunamadı.</span>';
     if(document.getElementById('dash_gider_kategorileri')) document.getElementById('dash_gider_kategorileri').innerHTML = kategoriHtml;
     
+    // Gelir Kategorilerini Çiz
+    let gelirKategoriHtml = '';
+    let gelirSiralama = Object.entries(gelirDagilimi).sort((a,b) => b[1] - a[1]);
+    let gelirGrafikKategorileri = [];
+    let gelirGrafikDegerleri = [];
+
+    gelirSiralama.forEach(([kat, tutar]) => {
+        gelirGrafikKategorileri.push(kat); gelirGrafikDegerleri.push(tutar);
+        let yuzde = toplamGelir > 0 ? ((tutar / toplamGelir) * 100).toFixed(0) : 0;
+        gelirKategoriHtml += `
+        <div class="mb-3">
+            <div class="d-flex justify-content-between mb-1">
+                <span class="small fw-medium" style="color:#334155;">${kat}</span>
+                <span class="small text-success fw-bold">${tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</span>
+            </div>
+            <div class="progress" style="height: 6px; background-color: #f1f5f9;">
+                <div class="progress-bar bg-success" role="progressbar" style="width: ${yuzde}%"></div>
+            </div>
+        </div>`;
+    });
+    if(gelirKategoriHtml === '') gelirKategoriHtml = '<span class="text-muted small">Bu yıla ait gelir verisi bulunamadı.</span>';
+    if(document.getElementById('dash_gelir_kategorileri')) document.getElementById('dash_gelir_kategorileri').innerHTML = gelirKategoriHtml;
+
     // --- GRAFİKLERİ ÇİZ (CHART.JS) ---
-    // 1. Aylık P&L Çizgi Grafiği
     let ctxPnl = document.getElementById('pnlChart');
     if(ctxPnl) {
-        if(window.pnlChartInstance) window.pnlChartInstance.destroy(); // Eski grafiği temizle
+        if(window.pnlChartInstance) window.pnlChartInstance.destroy();
         window.pnlChartInstance = new Chart(ctxPnl, {
             type: 'line',
             data: {
@@ -560,7 +580,6 @@
         });
     }
 
-    // 2. Gider Dağılımı Halka (Doughnut) Grafiği
     let ctxExp = document.getElementById('expenseChart');
     if(ctxExp) {
         if(window.expChartInstance) window.expChartInstance.destroy();
@@ -570,16 +589,29 @@
                 type: 'doughnut',
                 data: {
                     labels: grafikKategorileri,
-                    datasets: [{ data: grafikGiderDegerleri, backgroundColor: ['#3b82f6', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#64748b'], borderWidth: 0 }]
+                    datasets: [{ data: grafikGiderDegerleri, backgroundColor: ['#ef4444', '#f97316', '#f59e0b', '#3b82f6', '#8b5cf6', '#64748b'], borderWidth: 0 }]
                 },
                 options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { legend: { display: false } } }
             });
-        } else {
-            ctxExp.style.display = 'none'; // Veri yoksa halkayı gizle
-        }
+        } else { ctxExp.style.display = 'none'; }
     }
 
-    // Dashboard her çizildiğinde kayar şeridi de tetikle
+    let ctxInc = document.getElementById('incomeChart');
+    if(ctxInc) {
+        if(window.incChartInstance) window.incChartInstance.destroy();
+        if(gelirGrafikKategorileri.length > 0) {
+            ctxInc.style.display = 'block';
+            window.incChartInstance = new Chart(ctxInc, {
+                type: 'doughnut',
+                data: {
+                    labels: gelirGrafikKategorileri,
+                    datasets: [{ data: gelirGrafikDegerleri, backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#0ea5e9', '#64748b'], borderWidth: 0 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { legend: { display: false } } }
+            });
+        } else { ctxInc.style.display = 'none'; }
+    }
+
     if(typeof window.tickerGuncelle === 'function') window.tickerGuncelle();
   };
 
@@ -633,15 +665,28 @@
       let usdKur = document.getElementById('dash_usd_kur') ? document.getElementById('dash_usd_kur').value : (localStorage.getItem('ev_usd_try') || '34.50');
       let eurKur = document.getElementById('dash_eur_kur') ? document.getElementById('dash_eur_kur').value : (localStorage.getItem('ev_eur_try') || '38.20');
       
+      // Son Fatura ve Son Banka Hareketi Tespiti
+      let sonFaturaNo = "-";
+      let faturalarSatis = faturaListesi.filter(f => (f.tur === 'Satis' || f.tur === 'Ihracat' || f.tur === 'YerelSatis') && (f.faturaNo.startsWith('CPA') || f.faturaNo.startsWith('FTC')));
+      if(faturalarSatis.length > 0) sonFaturaNo = faturalarSatis[0].faturaNo;
+      
+      let sonIslemTarihi = "-";
+      if(islemListesi.length > 0) {
+          let lastIslem = islemListesi[0];
+          if(lastIslem.tarih && lastIslem.tarih.seconds) sonIslemTarihi = new Date(lastIslem.tarih.seconds * 1000).toLocaleDateString('tr-TR');
+          else if(lastIslem.tarih) sonIslemTarihi = new Date(lastIslem.tarih).toLocaleDateString('tr-TR');
+      }
+
       let kurMetni = `<span class="highlight">USD/TRY:</span> ${usdKur} ₺ <span class="sep">|</span> <span class="highlight">EUR/TRY:</span> ${eurKur} ₺`;
-      let sistemMetni = `<span class="highlight">SİSTEM DURUMU:</span> Tüm kasa ve banka bakiyeleri günceldir <i class="fas fa-check-circle ms-1" style="color:#10b981;"></i>`;
+      let guncellikMetni = `<span class="text-white"><i class="fas fa-file-invoice me-1"></i> SON FATURA: <span class="highlight">${sonFaturaNo}</span> <span class="sep">|</span> <i class="fas fa-university me-1"></i> SON BANKA İŞLEMİ: <span class="highlight">${sonIslemTarihi}</span></span>`;
 
       let serit = `
           <span class="sep">●</span> ${notMetni} 
           <span class="sep">●</span> ${kurMetni} 
-          <span class="sep">●</span> ${sistemMetni} 
+          <span class="sep">●</span> ${guncellikMetni} 
           <span class="sep">●</span> ${notMetni}
           <span class="sep">●</span> ${kurMetni} 
+          <span class="sep">●</span> ${guncellikMetni} 
       `;
       el.innerHTML = serit;
   };
@@ -3221,6 +3266,144 @@ window.islemDuzenleAc = function(id) {
       let faizGeliri = 0, bankaFaizGideri = 0, personelMaasGideri = 0, sgkVergiGideri = 0, carisizGider = 0;
       let hesaplananKdv = 0, indirilecekKdv = 0;
       let nakitGiris = 0, nakitCikis = 0;
+      let gelirKategorileri = {}; // P&L İçin Gelir Dağılımı
+
+      let usdKur = document.getElementById('dash_usd_kur') ? parseFloat(document.getElementById('dash_usd_kur').value) : 34.50;
+      let eurKur = document.getElementById('dash_eur_kur') ? parseFloat(document.getElementById('dash_eur_kur').value) : 38.20;
+
+      // 1. Faturaları Süz (Gelir Tablosu Matrahları ve KDV)
+      faturaListesi.forEach(f => {
+          if(f.tarih >= bas && f.tarih <= bit && f.durum !== 'Iptal') {
+              let kurCarpan = f.paraBirimi === 'USD' ? usdKur : (f.paraBirimi === 'EUR' ? eurKur : 1);
+              let matrahTry = f.tutar * kurCarpan;
+              let kdvTry = f.kdvTutar * kurCarpan;
+
+              if(f.tur === 'Satis' || f.tur === 'Ihracat' || f.tur === 'YerelSatis') {
+                  satisGeliri += matrahTry;
+                  hesaplananKdv += kdvTry;
+                  let kat = f.kategori || 'Genel Satış / İhracat';
+                  gelirKategorileri[kat] = (gelirKategorileri[kat] || 0) + matrahTry;
+              }
+              else if(f.tur === 'Alim' || f.tur === 'SMM_Gider' || f.tur === 'Fis_OKC') {
+                  indirilecekKdv += kdvTry;
+                  if (f.cariId !== 'SISTEM_MAAS' && f.cariId !== 'SISTEM_VERGI' && f.tur !== 'Fis_OKC') {
+                      faturaliGider += matrahTry;
+                  }
+              }
+          }
+      });
+
+      // 2. Banka İşlemleri
+      islemListesi.forEach(i => {
+          let dStr = i.tarih ? new Date(i.tarih.seconds * 1000).toISOString().split('T')[0] : '';
+          if(dStr >= bas && dStr <= bit) {
+              let b = bankaListesi.find(x => x.id === i.bankaId);
+              let kurCarpan = b ? (b.paraBirimi === 'USD' ? usdKur : (b.paraBirimi === 'EUR' ? eurKur : 1)) : 1;
+              let tutarTry = i.tutar * kurCarpan;
+              
+              let gercekYon = i.yon ? i.yon : (['Tahsilat', 'Faiz_Gelir'].includes(i.tur) ? 'Tahsilat' : 'Odeme');
+
+              if(gercekYon === 'Tahsilat') nakitGiris += tutarTry;
+              else nakitCikis += tutarTry;
+
+              if (gercekYon === 'Tahsilat') {
+                  if (i.tur === 'Faiz_Gelir' || i.cariId === 'SISTEM_FAIZ') faizGeliri += tutarTry;
+              } else {
+                  if (i.tur === 'Banka_Gider' || i.cariId === 'SISTEM_BANKA') bankaFaizGideri += tutarTry;
+                  else if (i.tur === 'Maas' || i.cariId === 'SISTEM_MAAS') personelMaasGideri += tutarTry;
+                  else if (i.tur === 'Vergi_SGK' || i.cariId === 'SISTEM_VERGI' || i.cariId === 'VERGI_DAIRESI') sgkVergiGideri += tutarTry;
+                  else if (i.cariId === 'MUHTELIF_SATICI' || i.tur === 'Fis_OKC') carisizGider += tutarTry;
+              }
+          }
+      });
+
+      let gelirDetayHtml = '';
+      for(const [kat, tutar] of Object.entries(gelirKategorileri)) {
+          gelirDetayHtml += `<tr><td class="text-muted ps-4 small">- ${kat}:</td><td class="text-end text-success fw-medium small">${tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td></tr>`;
+      }
+
+      let toplamGelir = satisGeliri + faizGeliri;
+      let toplamGider = faturaliGider + carisizGider + personelMaasGideri + sgkVergiGideri + bankaFaizGideri;
+      let netKar = toplamGelir - toplamGider;
+      let netNakit = nakitGiris - nakitCikis;
+      let v = kunyeVerisi;
+
+      let kdvFark = hesaplananKdv - indirilecekKdv;
+      let kdvBaslik = kdvFark >= 0 ? 'Ödenecek KDV:' : 'Devreden KDV:';
+      let kdvRenk = kdvFark >= 0 ? 'text-danger' : 'text-success';
+
+      let html = `
+      <div id="yazdirilacak-alan" class="p-5 bg-white shadow-sm rounded border border-light">
+          <div class="row mb-4 border-bottom border-2 pb-3 border-dark">
+              <div class="col-6">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 90" style="max-width: 250px; height: auto;" class="mb-2 d-print-block">
+                    <text x="0" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="800" fill="#1e293b" letter-spacing="-4">CPA</text>
+                    <rect x="114" y="32" width="22" height="6" fill="#f39c12" />
+                    <text x="140" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="300" fill="#64748b" letter-spacing="-3">FTC</text>
+                    <text x="3" y="78" font-family="'Inter', sans-serif" font-size="9" font-weight="600" fill="#475569" letter-spacing="3.2">CERTIFIED PUBLIC ACCOUNTING</text>
+                    <text x="3" y="90" font-family="'Inter', sans-serif" font-size="9" font-weight="400" fill="#94a3b8" letter-spacing="3.2">FOREIGN TRADE CONSULTANCY</text>
+                </svg>
+              </div>
+              <div class="col-6 text-end text-muted small">
+                  <h5 class="text-dark fw-bold mb-1">${v.tamUnvan || 'CPA FTC'}</h5>
+                  Rapor Dönemi: <strong>${bas.split('-').reverse().join('.')} - ${bit.split('-').reverse().join('.')}</strong>
+              </div>
+          </div>
+          <h4 class="text-center fw-bold mb-5" style="color: #2c3e50;">KONSOLİDE FİNANSAL RAPOR</h4>
+          
+          <div class="row mb-4">
+              <div class="col-md-6 mb-4">
+                  <h6 class="fw-bold text-primary border-bottom pb-2"><i class="fas fa-chart-line me-2"></i>Gelir Tablosu (P&L)</h6>
+                  <table class="table table-sm table-borderless">
+                      <tr><td class="text-muted fw-bold">Satış ve İhracat Hasılatı:</td><td class="text-end text-success fw-bold">${satisGeliri.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td></tr>
+                      ${gelirDetayHtml}
+                      <tr><td class="text-muted border-bottom pt-2 fw-bold">Faiz ve Diğer Gelirler:</td><td class="text-end text-success fw-bold border-bottom pt-2">+${faizGeliri.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td></tr>
+                      <tr class="table-light"><td class="fw-bold small">TOPLAM GELİR:</td><td class="text-end fw-bold text-success small">${toplamGelir.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td></tr>
+                      
+                      <tr><td class="text-muted pt-3">Tedarikçi ve Alım Giderleri:</td><td class="text-end text-danger fw-bold pt-3">-${faturaliGider.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td></tr>
+                      <tr><td class="text-muted">Carisiz Harcama ve Fişler:</td><td class="text-end text-danger fw-bold">-${carisizGider.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td></tr>
+                      <tr><td class="text-muted">Personel ve Maaş Giderleri:</td><td class="text-end text-danger fw-bold">-${personelMaasGideri.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td></tr>
+                      <tr><td class="text-muted">Banka/Kart Ödenen Vergi ve SGK:</td><td class="text-end text-danger fw-bold">-${sgkVergiGideri.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td></tr>
+                      <tr><td class="text-muted border-bottom">Banka Masrafı ve Faiz Gideri:</td><td class="text-end text-danger fw-bold border-bottom">-${bankaFaizGideri.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td></tr>
+                      <tr class="table-light"><td class="fw-bold small">TOPLAM GİDER:</td><td class="text-end fw-bold text-danger small">-${toplamGider.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td></tr>
+                      
+                      <tr class="table-secondary border-top border-dark"><td class="fw-bold">Net Kâr / Zarar:</td><td class="text-end fw-bold ${netKar >= 0 ? 'text-success' : 'text-danger'} fs-6">${netKar >= 0 ? '+' : ''}${netKar.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td></tr>
+                  </table>
+              </div>
+              <div class="col-md-6 mb-4">
+                  <h6 class="fw-bold text-info border-bottom pb-2"><i class="fas fa-water me-2"></i>Nakit Akış (Cash Flow)</h6>
+                  <table class="table table-sm table-borderless mb-4">
+                      <tr><td class="text-muted">Toplam Tahsilat (Giriş):</td><td class="text-end text-success fw-bold">${nakitGiris.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td></tr>
+                      <tr><td class="text-muted border-bottom">Toplam Ödeme (Çıkış):</td><td class="text-end text-danger fw-bold border-bottom">-${nakitCikis.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td></tr>
+                      <tr class="table-light"><td class="fw-bold">Net Nakit Pozisyonu:</td><td class="text-end fw-bold ${netNakit >= 0 ? 'text-success' : 'text-danger'} fs-6">${netNakit >= 0 ? '+' : ''}${netNakit.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td></tr>
+                  </table>
+                  
+                  <h6 class="fw-bold text-warning border-bottom pb-2 mt-4"><i class="fas fa-percent me-2"></i>KDV ve Vergi Özeti</h6>
+                  <table class="table table-sm table-borderless">
+                      <tr><td class="text-muted">Hesaplanan KDV (Satışlardan):</td><td class="text-end text-dark fw-bold">${hesaplananKdv.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td></tr>
+                      <tr><td class="text-muted border-bottom">İndirilecek KDV (Alımlardan):</td><td class="text-end text-dark fw-bold border-bottom">-${indirilecekKdv.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td></tr>
+                      <tr class="table-light"><td class="fw-bold">${kdvBaslik}</td><td class="text-end fw-bold ${kdvRenk} fs-6">${Math.abs(kdvFark).toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td></tr>
+                      <tr><td colspan="2" class="text-muted small pt-3"><i class="fas fa-info-circle"></i> 1 Nolu, 2 Nolu KDV, Geçici Vergi ve SGK gibi yasal yükümlülükler sol taraftaki <b>"Banka/Kart Ödenen Vergi ve SGK"</b> giderleri içerisine yansıtılmıştır.</td></tr>
+                  </table>
+              </div>
+          </div>
+
+          <div class="mt-4 p-4 bg-light rounded" id="ai_rapor_analiz_kutusu" style="border: 1px dashed #cbd5e1;">
+              <div class="text-center d-print-none">
+                  <i class="fas fa-robot fa-3x text-warning mb-3 opacity-75"></i>
+                  <h6 class="fw-bold text-dark">Yönetici Özeti Gerekiyor Mu?</h6>
+                  <button class="btn btn-warning fw-bold px-4 shadow-sm" onclick="aiRaporAnalizEt(${toplamGelir}, ${toplamGider}, ${netKar}, ${nakitGiris}, ${nakitCikis}, ${netNakit}, '${bas}', '${bit}')">
+                      <i class="fas fa-magic me-2"></i> AI Analizi Oluştur
+                  </button>
+              </div>
+          </div>
+      </div>
+      <div class="mt-4 text-center d-print-none">
+          <button class="btn btn-secondary shadow-sm px-4" onclick="window.print()"><i class="fas fa-print me-2"></i> Çıktı Al / PDF Kaydet</button>
+      </div>
+      `;
+      document.getElementById('rapor_sonuc_alani').innerHTML = html;
+  };
 
       let usdKur = document.getElementById('dash_usd_kur') ? parseFloat(document.getElementById('dash_usd_kur').value) : 34.50;
       let eurKur = document.getElementById('dash_eur_kur') ? parseFloat(document.getElementById('dash_eur_kur').value) : 38.20;
@@ -3658,7 +3841,7 @@ window.islemDuzenleAc = function(id) {
                 </div>
 
                 <div class="row g-3 mb-4">
-                    <div class="col-md-8">
+                    <div class="col-md-12">
                         <div class="card h-100 shadow-sm dash-card">
                             <div class="card-header bg-transparent border-bottom pt-4 pb-3">
                                 <h6 class="fw-bold text-uppercase mb-0" style="font-size: 0.75rem; color:#64748b; letter-spacing: 0.5px;"><i class="fas fa-chart-area me-2"></i>Aylık Finansal Trend (P&L)</h6>
@@ -3678,7 +3861,24 @@ window.islemDuzenleAc = function(id) {
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                </div>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="card h-100 shadow-sm dash-card">
+                            <div class="card-header bg-transparent border-bottom pt-4 pb-3">
+                                <h6 class="fw-bold text-uppercase mb-0" style="font-size: 0.75rem; color:#64748b; letter-spacing: 0.5px;"><i class="fas fa-chart-pie me-2"></i>Gelir Dağılımı</h6>
+                            </div>
+                            <div class="card-body p-4">
+                                <div style="position: relative; height: 180px; width: 100%; margin-bottom: 20px;" class="d-flex justify-content-center">
+                                    <canvas id="incomeChart"></canvas>
+                                </div>
+                                <div id="dash_gelir_kategorileri">
+                                    <span class="text-muted small">Veri hesaplanıyor...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
                         <div class="card h-100 shadow-sm dash-card">
                             <div class="card-header bg-transparent border-bottom pt-4 pb-3">
                                 <h6 class="fw-bold text-uppercase mb-0" style="font-size: 0.75rem; color:#64748b; letter-spacing: 0.5px;"><i class="fas fa-chart-pie me-2"></i>Gider Dağılımı</h6>
