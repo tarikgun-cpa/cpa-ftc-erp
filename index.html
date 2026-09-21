@@ -952,18 +952,24 @@
     }
 
     let html = `<div id="yazdirilacak-alan" class="p-4 bg-white shadow-sm rounded border border-light">
-        <div class="d-flex justify-content-between align-items-end mb-4 border-bottom pb-3">
-            <div class="d-flex align-items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 90" style="max-width: 250px; height: auto; margin-right: 25px;" class="d-none d-print-block">
-    <text x="0" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="800" fill="#1e293b" letter-spacing="-4">CPA</text>
-    <rect x="114" y="32" width="22" height="6" fill="#f39c12" />
-    <text x="140" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="300" fill="#64748b" letter-spacing="-3">FTC</text>
-    <text x="3" y="78" font-family="'Inter', sans-serif" font-size="9" font-weight="600" fill="#475569" letter-spacing="3.2">CERTIFIED PUBLIC ACCOUNTING</text>
-    <text x="3" y="90" font-family="'Inter', sans-serif" font-size="9" font-weight="400" fill="#94a3b8" letter-spacing="3.2">FOREIGN TRADE CONSULTANCY</text>
-</svg>
-                <div><h4 class="mb-0 text-dark fw-bold" style="color: #2c3e50;">${cari.unvan}</h4><small class="text-muted">Cari Hesap Ekstresi</small></div>
+        <div class="row mb-4 border-bottom pb-3 align-items-center">
+            <div class="col-8 d-flex align-items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 90" style="width: 290px; min-width: 290px; height: auto; margin-right: 25px;" class="d-none d-print-block">
+                    <text x="0" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="800" fill="#1e293b" letter-spacing="-4">CPA</text>
+                    <rect x="114" y="32" width="22" height="6" fill="#f39c12" />
+                    <text x="140" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="300" fill="#64748b" letter-spacing="-3">FTC</text>
+                    <text x="3" y="78" font-family="'Inter', sans-serif" font-size="9" font-weight="600" fill="#475569" letter-spacing="3.2">CERTIFIED PUBLIC ACCOUNTING</text>
+                    <text x="3" y="90" font-family="'Inter', sans-serif" font-size="9" font-weight="400" fill="#94a3b8" letter-spacing="3.2">FOREIGN TRADE CONSULTANCY</text>
+                </svg>
+                <div class="ms-2 flex-grow-1">
+                    <h3 class="mb-1 text-dark fw-bold" style="color: #2c3e50; line-height: 1.2;">${cari.unvan}</h3>
+                    <span class="text-muted fs-6">Cari Hesap Ekstresi</span>
+                </div>
             </div>
-            <div class="text-end"><h6 class="mb-0 text-muted small">Güncel Kapanış Bakiyesi</h6><h4 class="${cari.bakiye >= 0 ? 'text-success' : 'text-danger'} fw-bold mb-0">${Math.abs(cari.bakiye).toFixed(2)} ${birim}</h4></div>
+            <div class="col-4 text-end">
+                <h6 class="mb-1 text-muted small">Güncel Kapanış Bakiyesi</h6>
+                <h3 class="${cari.bakiye >= 0 ? 'text-success' : 'text-danger'} fw-bold mb-0">${Math.abs(cari.bakiye).toLocaleString('tr-TR', {minimumFractionDigits: 2})} ${birim}</h3>
+            </div>
         </div>
         
         <div class="row mb-3 d-print-none bg-light p-2 rounded mx-0">
@@ -976,9 +982,6 @@
         <table class="table table-sm table-hover align-middle">
             <thead class="text-muted small border-bottom border-dark border-2" style="background-color: #f4f6f9;"><tr><th>Tarih</th><th>İşlem Tipi</th><th>Açıklama</th><th class="text-end">Borç (Debit)</th><th class="text-end">Alacak (Credit)</th><th class="text-end">Bakiye</th><th class="d-print-none text-center">İşlem</th></tr></thead>
             <tbody>`;
-            
-    // Başlıktaki formatı da düzeltelim
-    html = html.replace(`${Math.abs(cari.bakiye).toFixed(2)}`, `${Math.abs(cari.bakiye).toLocaleString('tr-TR', {minimumFractionDigits: 2})}`);
 
     let yuruyenBakiye = 0; let toplamBorc = 0; let toplamAlacak = 0; let gosterilenKayit = 0;
     
