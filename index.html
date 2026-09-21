@@ -73,23 +73,23 @@
         /* Dashboard Kartları Şıklaştırma */
         .dash-card { background: linear-gradient(145deg, #ffffff, #f8fafc); border: 1px solid #e2e8f0; border-radius: 8px; transition: transform 0.2s; }
         .dash-card:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.05) !important; }
-        /* Premium UI Yükseltmeleri */
-        .premium-card { border-radius: 16px !important; box-shadow: 0 4px 20px rgba(0,0,0,0.03) !important; border: 1px solid rgba(226, 232, 240, 0.8) !important; background: #fff; transition: all 0.3s ease; }
-        .premium-card:hover { box-shadow: 0 10px 25px rgba(0,0,0,0.08) !important; transform: translateY(-2px); }
-        .premium-cari-card { border-radius: 14px; border-left: 5px solid #cbd5e1; background: linear-gradient(145deg, #ffffff, #fdfdfe); box-shadow: 0 4px 15px rgba(0,0,0,0.02); transition: all 0.2s; overflow: hidden; }
-        .premium-cari-card:hover { box-shadow: 0 8px 25px rgba(0,0,0,0.06); transform: translateY(-3px); }
+        /* Premium UI Yükseltmeleri - Kurumsal ve Kompakt */
+        .premium-card { border-radius: 6px !important; box-shadow: 0 2px 8px rgba(0,0,0,0.03) !important; border: 1px solid #e2e8f0 !important; background: #fff; transition: all 0.2s ease; }
+        .premium-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.05) !important; transform: translateY(-1px); }
+        .premium-cari-card { border-radius: 6px; border-left: 4px solid #cbd5e1; background: #fff; border-top: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; box-shadow: 0 2px 5px rgba(0,0,0,0.02); transition: all 0.2s; overflow: hidden; }
+        .premium-cari-card:hover { box-shadow: 0 4px 10px rgba(0,0,0,0.05); transform: translateY(-1px); }
         
-        .custom-tabs { background: #fff; padding: 6px; border-radius: 50px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); display: inline-flex; border: 1px solid #e2e8f0; margin-bottom: 25px; }
-        .custom-tabs .nav-link { border-radius: 50px; color: #64748b; font-weight: 600; padding: 8px 24px; transition: all 0.3s; margin: 0 2px; font-size: 0.85rem; border: none; background: transparent; }
-        .custom-tabs .nav-link:hover { color: #2c3e50; background: #f8fafc; }
-        .custom-tabs .nav-link.active { background-color: #2c3e50; color: #fff; box-shadow: 0 4px 12px rgba(44, 62, 80, 0.2); transform: scale(1.02); }
+        .custom-tabs { background: #f8fafc; padding: 4px; border-radius: 6px; display: inline-flex; border: 1px solid #e2e8f0; margin-bottom: 20px; }
+        .custom-tabs .nav-link { border-radius: 4px; color: #64748b; font-weight: 600; padding: 6px 16px; transition: all 0.2s; margin: 0 2px; font-size: 0.8rem; border: none; background: transparent; }
+        .custom-tabs .nav-link:hover { color: #2c3e50; }
+        .custom-tabs .nav-link.active { background-color: #fff; color: #2c3e50; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transform: none; border: 1px solid #e2e8f0; }
         
-        .table-container { background: #fff; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; overflow: hidden; padding: 15px; }
+        .table-container { background: #fff; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; overflow: hidden; padding: 10px; }
         .table-container .table { margin-bottom: 0; }
-        .table-container thead th { background-color: #f8fafc !important; color: #475569 !important; font-size: 0.75rem; letter-spacing: 0.5px; padding: 12px 16px; border-bottom: 2px solid #e2e8f0; }
+        .table-container thead th { background-color: #f1f5f9 !important; color: #475569 !important; font-size: 0.7rem; letter-spacing: 0px; padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
         
         /* Kart İçi İkon Zeminleri */
-        .icon-box { width: 45px; height: 45px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+        .icon-box { width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; }
     </style>
     <!-- Grafik ve Excel Kütüphaneleri -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -711,19 +711,11 @@
       let cpaFaturalar = faturaListesi.filter(f => f.faturaNo && f.faturaNo.startsWith('CPA'));
       let ftcFaturalar = faturaListesi.filter(f => f.faturaNo && f.faturaNo.startsWith('FTC'));
       
-      // CPA Serisi İçin En Yeniyi Bul
-      cpaFaturalar.sort((a, b) => {
-          let timeA = a.islemTarihi ? a.islemTarihi.seconds : new Date(a.tarih).getTime();
-          let timeB = b.islemTarihi ? b.islemTarihi.seconds : new Date(b.tarih).getTime();
-          return timeB - timeA;
-      });
+      // CPA Serisi İçin En Büyük Numarayı Bul (Alfanümerik Doğal Sıralama)
+      cpaFaturalar.sort((a, b) => b.faturaNo.localeCompare(a.faturaNo, undefined, {numeric: true, sensitivity: 'base'}));
       
-      // FTC Serisi İçin En Yeniyi Bul
-      ftcFaturalar.sort((a, b) => {
-          let timeA = a.islemTarihi ? a.islemTarihi.seconds : new Date(a.tarih).getTime();
-          let timeB = b.islemTarihi ? b.islemTarihi.seconds : new Date(b.tarih).getTime();
-          return timeB - timeA;
-      });
+      // FTC Serisi İçin En Büyük Numarayı Bul
+      ftcFaturalar.sort((a, b) => b.faturaNo.localeCompare(a.faturaNo, undefined, {numeric: true, sensitivity: 'base'}));
       
       let sonCpa = cpaFaturalar.length > 0 ? cpaFaturalar[0].faturaNo : "CPA Yok";
       let sonFtc = ftcFaturalar.length > 0 ? ftcFaturalar[0].faturaNo : "FTC Yok";
@@ -822,7 +814,7 @@
 
       let html = '';
 
-      // Kart Çizim Şablonu - PREMIUM TASARIM
+      // Kart Çizim Şablonu - PREMIUM TASARIM (Kompakt)
       const renderGrup = (baslik, ikon, renk, liste) => {
           if(liste.length === 0) return '';
           
@@ -859,27 +851,27 @@
               grupHtml += `
                   <div class="col-xl-3 col-lg-4 col-md-6">
                       <div class="premium-cari-card h-100 d-flex flex-column" style="border-left-color: ${renk} !important;">
-                          <div class="p-4 cursor-pointer flex-grow-1 position-relative" onclick="cariEkstreAc('${cari.id}')">
-                              <div class="d-flex justify-content-between align-items-start mb-3">
-                                  <div class="pe-3">
-                                      <h6 class="fw-bolder mb-1 text-dark" style="font-size: 0.95rem; line-height:1.3;" title="${cari.unvan}">${cari.unvan}</h6>
-                                      <small class="text-muted" style="font-size: 0.7rem;"><i class="fas fa-map-marker-alt me-1 opacity-75"></i>${cari.ulke || 'Türkiye'} <span class="mx-1">|</span> VKN: ${cari.vergiNo || '-'}</small>
+                          <div class="p-3 cursor-pointer flex-grow-1 position-relative" onclick="cariEkstreAc('${cari.id}')">
+                              <div class="d-flex justify-content-between align-items-start mb-2">
+                                  <div class="pe-2">
+                                      <h6 class="fw-bold mb-1 text-dark" style="font-size: 0.85rem; line-height:1.2;" title="${cari.unvan}">${cari.unvan}</h6>
+                                      <small class="text-muted" style="font-size: 0.65rem;"><i class="fas fa-map-marker-alt me-1 opacity-75"></i>${cari.ulke || 'Türkiye'} <span class="mx-1">|</span> VKN: ${cari.vergiNo || '-'}</small>
                                   </div>
-                                  <span class="badge ${paraBirimiBg} rounded-pill px-2 py-1 shadow-sm" style="font-size: 0.65rem;">${birim}</span>
+                                  <span class="badge ${paraBirimiBg} rounded px-1 py-1 shadow-sm" style="font-size: 0.55rem;">${birim}</span>
                               </div>
                               
-                              <div class="mt-4 mb-3 p-3 rounded-4 text-center" style="background-color: #f8fafc; border: 1px dashed rgba(203, 213, 225, 0.8);">
-                                  <span class="text-muted small d-block mb-1 text-uppercase" style="letter-spacing:0.5px; font-size:0.65rem;">${bDurum}</span>
-                                  <h4 class="${bRenk} mb-0 fw-bolder" style="font-size: 1.3rem; letter-spacing: -0.5px;">${Math.abs(bakiye).toLocaleString('tr-TR', {minimumFractionDigits: 2})} <span class="fs-6 opacity-75">${sembol}</span></h4>
+                              <div class="mt-2 mb-2 p-2 rounded text-center" style="background-color: #f8fafc; border: 1px dashed rgba(203, 213, 225, 0.8);">
+                                  <span class="text-muted d-block mb-1 text-uppercase" style="letter-spacing:0.5px; font-size:0.6rem;">${bDurum}</span>
+                                  <h6 class="${bRenk} mb-0 fw-bold" style="font-size: 1.05rem; letter-spacing: -0.5px;">${Math.abs(bakiye).toLocaleString('tr-TR', {minimumFractionDigits: 2})} <span style="font-size:0.75rem;" class="opacity-75">${sembol}</span></h6>
                               </div>
                               
-                              <div class="text-muted mt-auto pt-2 border-top" style="font-size:0.75rem;">
+                              <div class="text-muted mt-auto pt-1 border-top" style="font-size:0.7rem;">
                                   ${analizHtml}
                               </div>
                           </div>
-                          <div class="bg-white border-top py-2 px-3 d-flex justify-content-end gap-2">
-                              <button class="btn btn-sm btn-light border py-1 px-3 shadow-sm rounded-pill hover-primary" title="Düzenle" onclick="cariDuzenleAc('${cari.id}')"><i class="fas fa-edit text-primary"></i></button>
-                              <button class="btn btn-sm btn-light border py-1 px-3 shadow-sm rounded-pill hover-danger" title="Sil" onclick="cariSil('${cari.id}')"><i class="fas fa-trash text-danger"></i></button>
+                          <div class="bg-light border-top py-1 px-2 d-flex justify-content-end gap-1">
+                              <button class="btn btn-sm btn-white border py-0 px-2 shadow-sm rounded hover-primary" title="Düzenle" onclick="cariDuzenleAc('${cari.id}')"><i class="fas fa-edit text-primary" style="font-size:0.7rem;"></i></button>
+                              <button class="btn btn-sm btn-white border py-0 px-2 shadow-sm rounded hover-danger" title="Sil" onclick="cariSil('${cari.id}')"><i class="fas fa-trash text-danger" style="font-size:0.7rem;"></i></button>
                           </div>
                       </div>
                   </div>`;
@@ -4015,23 +4007,22 @@ window.islemDuzenleAc = function(id) {
       if(sayfa === 'dashboard') {
             let mevcutYil = new Date().getFullYear();
             mainContent.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
                     <div>
-                        <h2 class="mb-1 text-dark fw-bolder" style="letter-spacing: -0.5px;">Yönetici Özeti</h2>
-                        <p class="text-muted small mb-0">Gerçek zamanlı finansal analiz ve şirket bilançosu</p>
+                        <h4 class="mb-1 text-dark fw-bold" style="letter-spacing: -0.5px;">Yönetici Özeti</h4>
                     </div>
                     <div class="d-flex gap-2">
-                        <div class="d-flex align-items-center bg-white p-2 px-3 rounded-pill shadow-sm border border-light" title="USD/TRY Çevrim Kuru">
-                            <i class="fas fa-dollar-sign text-success me-2"></i><small class="text-muted fw-bold me-1">USD:</small>
-                            <input type="number" id="dash_usd_kur" class="form-control form-control-sm border-0 bg-transparent fw-bolder p-0 text-dark" value="34.50" step="0.01" style="width: 50px; outline:none; box-shadow:none;" onchange="dashboardCiz()">
+                        <div class="d-flex align-items-center bg-white p-1 px-2 rounded shadow-sm border border-light" title="USD/TRY Çevrim Kuru">
+                            <i class="fas fa-dollar-sign text-success me-1"></i><small class="text-muted fw-bold me-1">USD:</small>
+                            <input type="number" id="dash_usd_kur" class="form-control form-control-sm border-0 bg-transparent fw-bold p-0 text-dark" value="34.50" step="0.01" style="width: 50px; outline:none; box-shadow:none; font-size: 0.8rem;" onchange="dashboardCiz()">
                         </div>
-                        <div class="d-flex align-items-center bg-white p-2 px-3 rounded-pill shadow-sm border border-light" title="EUR/TRY Çevrim Kuru">
-                            <i class="fas fa-euro-sign text-info me-2"></i><small class="text-muted fw-bold me-1">EUR:</small>
-                            <input type="number" id="dash_eur_kur" class="form-control form-control-sm border-0 bg-transparent fw-bolder p-0 text-dark" value="38.20" step="0.01" style="width: 50px; outline:none; box-shadow:none;" onchange="dashboardCiz()">
+                        <div class="d-flex align-items-center bg-white p-1 px-2 rounded shadow-sm border border-light" title="EUR/TRY Çevrim Kuru">
+                            <i class="fas fa-euro-sign text-info me-1"></i><small class="text-muted fw-bold me-1">EUR:</small>
+                            <input type="number" id="dash_eur_kur" class="form-control form-control-sm border-0 bg-transparent fw-bold p-0 text-dark" value="38.20" step="0.01" style="width: 50px; outline:none; box-shadow:none; font-size: 0.8rem;" onchange="dashboardCiz()">
                         </div>
-                        <div class="d-flex align-items-center bg-white p-2 px-3 rounded-pill shadow-sm border border-light ms-2">
+                        <div class="d-flex align-items-center bg-white p-1 px-2 rounded shadow-sm border border-light ms-1">
                             <i class="fas fa-calendar-alt text-primary me-2"></i>
-                            <select class="form-select form-select-sm border-0 bg-transparent fw-bolder p-0 pe-3 text-dark" id="dash_yil_secici" onchange="dashboardCiz()" style="width: 60px; outline:none; box-shadow:none; cursor:pointer;">
+                            <select class="form-select form-select-sm border-0 bg-transparent fw-bold p-0 pe-2 text-dark" id="dash_yil_secici" onchange="dashboardCiz()" style="width: 60px; outline:none; box-shadow:none; cursor:pointer; font-size: 0.8rem;">
                                 <option value="${mevcutYil}">${mevcutYil}</option>
                                 <option value="${mevcutYil - 1}">${mevcutYil - 1}</option>
                             </select>
@@ -4039,7 +4030,7 @@ window.islemDuzenleAc = function(id) {
                     </div>
                 </div>
 
-                <div class="ticker-wrap d-print-none shadow-sm">
+                <div class="ticker-wrap d-print-none shadow-sm mb-3">
                     <button class="ticker-btn" onclick="notEkleAc()"><i class="fas fa-bolt me-1"></i> FLAŞ NOT</button>
                     <div class="ticker-content">
                         <div class="ticker-text" id="dash_ticker_text"></div>
@@ -4047,37 +4038,91 @@ window.islemDuzenleAc = function(id) {
                 </div>
 
                 <!-- SEKMELER (TABS) -->
-                <div class="text-center d-print-none">
+                <div class="d-print-none">
                     <ul class="nav custom-tabs" id="dashboardTabs" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-grafik" type="button" role="tab">
-                                <i class="fas fa-chart-line me-2"></i>Finansal Analiz ve Büyüme
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-bilanco" type="button" role="tab">
+                                <i class="fas fa-balance-scale me-1"></i>Detaylı Bilanço & Nakit
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-bilanco" type="button" role="tab">
-                                <i class="fas fa-balance-scale me-2"></i>Detaylı Bilanço & Nakit
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-grafik" type="button" role="tab">
+                                <i class="fas fa-chart-line me-1"></i>Finansal Analiz ve Büyüme
                             </button>
                         </li>
                     </ul>
                 </div>
 
                 <div class="tab-content">
-                    <!-- SEKME 1: FİNANSAL ANALİZ VE GRAFİKLER -->
-                    <div class="tab-pane fade show active" id="tab-grafik" role="tabpanel">
-                        <div class="row g-4 mb-4">
-                            <div class="col-md-12">
-                                <div class="premium-card p-4">
-                                    <div class="d-flex justify-content-between align-items-center mb-4">
-                                        <h6 class="fw-bolder text-dark mb-0"><i class="fas fa-chart-area text-primary me-2"></i>Aylık Kârlılık Trendi (P&L)</h6>
+                    <!-- SEKME 1: DETAYLI BİLANÇO VE KASA (Varsayılan Açık) -->
+                    <div class="tab-pane fade show active" id="tab-bilanco" role="tabpanel">
+                        <div class="row g-3 mb-3">
+                            <div class="col-12">
+                                <div class="premium-card p-3 h-100 border-start border-3" style="border-left-color: #10b981 !important;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="fw-bold mb-0 text-success" style="font-size: 0.75rem;"><i class="fas fa-coins me-2"></i>Kurumsal Kâr & Temettü Özeti</h6>
                                     </div>
-                                    <div style="position: relative; height: 260px; width: 100%; margin-bottom: 20px;">
+                                    <div id="dash_temettu_alani" class="px-1"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-xl-6 col-lg-6">
+                                <div class="premium-card p-3 h-100 border-start border-3" style="border-left-color: #2c3e50 !important;">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h6 class="fw-bold mb-0 text-dark" style="font-size: 0.75rem;">Likidite (Nakit ve Banka)</h6>
+                                        <div class="icon-box bg-light text-secondary"><i class="fas fa-wallet"></i></div>
+                                    </div>
+                                    <div id="dash_kasa_listesi" class="px-1"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-xl-6 col-lg-6">
+                                <div class="premium-card p-3 h-100 border-start border-3" style="border-left-color: #8b5cf6 !important;">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h6 class="fw-bold mb-0" style="color: #8b5cf6; font-size: 0.75rem;">Ortaklara Borç/Alacak</h6>
+                                        <div class="icon-box bg-light text-secondary"><i class="fas fa-handshake"></i></div>
+                                    </div>
+                                    <div id="dash_ortak_rozetler" class="d-flex flex-column gap-2 px-1"></div>
+                                </div>
+                            </div>
+
+                            <div class="col-xl-6 col-lg-6">
+                                <div class="premium-card p-3 h-100 border-start border-3" style="border-left-color: #f39c12 !important;">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h6 class="fw-bold mb-0 text-warning" style="font-size: 0.75rem;">Bekleyen Alacaklar (Top 5)</h6>
+                                        <div class="icon-box bg-warning bg-opacity-10 text-warning"><i class="fas fa-arrow-down"></i></div>
+                                    </div>
+                                    <div id="dash_alacak_rozetler" class="d-flex flex-column gap-2 px-1"></div>
+                                </div>
+                            </div>
+
+                            <div class="col-xl-6 col-lg-6">
+                                <div class="premium-card p-3 h-100 border-start border-3" style="border-left-color: #e74c3c !important;">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h6 class="fw-bold mb-0 text-danger" style="font-size: 0.75rem;">Bekleyen Borçlar (Top 5)</h6>
+                                        <div class="icon-box bg-danger bg-opacity-10 text-danger"><i class="fas fa-arrow-up"></i></div>
+                                    </div>
+                                    <div id="dash_borc_rozetler" class="d-flex flex-column gap-2 px-1"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SEKME 2: FİNANSAL ANALİZ VE GRAFİKLER -->
+                    <div class="tab-pane fade" id="tab-grafik" role="tabpanel">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-12">
+                                <div class="premium-card p-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h6 class="fw-bold text-dark mb-0" style="font-size: 0.75rem;"><i class="fas fa-chart-area text-primary me-2"></i>Aylık Kârlılık Trendi (P&L)</h6>
+                                    </div>
+                                    <div style="position: relative; height: 220px; width: 100%; margin-bottom: 15px;">
                                         <canvas id="pnlChart"></canvas>
                                     </div>
                                     <div class="table-responsive">
-                                        <table class="table table-sm table-hover align-middle mb-0 mt-3 border-top">
+                                        <table class="table table-sm table-hover align-middle mb-0 mt-2 border-top">
                                             <thead>
-                                                <tr><th class="ps-3">Dönem (Ay)</th><th class="text-end">Aylık Gelir</th><th class="text-end">Aylık Gider</th><th class="text-end pe-3">Net Kâr / Zarar</th></tr>
+                                                <tr><th class="ps-2">Dönem (Ay)</th><th class="text-end">Aylık Gelir</th><th class="text-end">Aylık Gider</th><th class="text-end pe-2">Net Kâr / Zarar</th></tr>
                                             </thead>
                                             <tbody id="dash_kar_zarar"></tbody>
                                         </table>
@@ -4085,82 +4130,23 @@ window.islemDuzenleAc = function(id) {
                                 </div>
                             </div>
                         </div>
-                        <div class="row g-4">
+                        <div class="row g-3">
                             <div class="col-md-6">
-                                <div class="premium-card p-4 h-100">
-                                    <h6 class="fw-bolder text-dark mb-4"><i class="fas fa-chart-pie text-success me-2"></i>Gelir Dağılımı Sentezi</h6>
-                                    <div style="position: relative; height: 220px; width: 100%; margin-bottom: 30px;" class="d-flex justify-content-center">
+                                <div class="premium-card p-3 h-100">
+                                    <h6 class="fw-bold text-dark mb-3" style="font-size: 0.75rem;"><i class="fas fa-chart-pie text-success me-2"></i>Gelir Dağılımı Sentezi</h6>
+                                    <div style="position: relative; height: 180px; width: 100%; margin-bottom: 20px;" class="d-flex justify-content-center">
                                         <canvas id="incomeChart"></canvas>
                                     </div>
-                                    <div id="dash_gelir_kategorileri" class="mt-2 px-2"></div>
+                                    <div id="dash_gelir_kategorileri" class="px-1"></div>
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <div class="premium-card p-4 h-100">
-                                    <h6 class="fw-bolder text-dark mb-4"><i class="fas fa-chart-pie text-danger me-2"></i>Gider Dağılımı Sentezi</h6>
-                                    <div style="position: relative; height: 220px; width: 100%; margin-bottom: 30px;" class="d-flex justify-content-center">
+                                <div class="premium-card p-3 h-100">
+                                    <h6 class="fw-bold text-dark mb-3" style="font-size: 0.75rem;"><i class="fas fa-chart-pie text-danger me-2"></i>Gider Dağılımı Sentezi</h6>
+                                    <div style="position: relative; height: 180px; width: 100%; margin-bottom: 20px;" class="d-flex justify-content-center">
                                         <canvas id="expenseChart"></canvas>
                                     </div>
-                                    <div id="dash_gider_kategorileri" class="mt-2 px-2"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- SEKME 2: DETAYLI BİLANÇO VE KASA -->
-                    <div class="tab-pane fade" id="tab-bilanco" role="tabpanel">
-                        <div class="row g-4 mb-4">
-                            <!-- Kâr ve Temettü (En Üste Geniş) -->
-                            <div class="col-12">
-                                <div class="premium-card p-4 h-100 border-start border-4" style="border-left-color: #10b981 !important;">
-                                    <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 class="fw-bold text-uppercase mb-0 text-success" style="letter-spacing: 1px;"><i class="fas fa-coins me-2"></i>Kurumsal Kâr & Temettü Özeti</h6>
-                                    </div>
-                                    <div id="dash_temettu_alani" class="px-2 py-1"></div>
-                                </div>
-                            </div>
-                            
-                            <!-- Nakit Kasa -->
-                            <div class="col-xl-6 col-lg-6">
-                                <div class="premium-card p-4 h-100 border-start border-4" style="border-left-color: #2c3e50 !important;">
-                                    <div class="d-flex justify-content-between align-items-center mb-4">
-                                        <h6 class="fw-bold text-uppercase mb-0 text-dark" style="letter-spacing: 1px;">Likidite (Nakit ve Banka)</h6>
-                                        <div class="icon-box bg-light text-secondary"><i class="fas fa-wallet"></i></div>
-                                    </div>
-                                    <div id="dash_kasa_listesi" class="px-1"></div>
-                                </div>
-                            </div>
-                            
-                            <!-- Ortaklar -->
-                            <div class="col-xl-6 col-lg-6">
-                                <div class="premium-card p-4 h-100 border-start border-4" style="border-left-color: #8b5cf6 !important;">
-                                    <div class="d-flex justify-content-between align-items-center mb-4">
-                                        <h6 class="fw-bold text-uppercase mb-0" style="color: #8b5cf6; letter-spacing: 1px;">Ortaklara Borç/Alacak</h6>
-                                        <div class="icon-box bg-light text-secondary"><i class="fas fa-handshake"></i></div>
-                                    </div>
-                                    <div id="dash_ortak_rozetler" class="d-flex flex-column gap-3 px-1"></div>
-                                </div>
-                            </div>
-
-                            <!-- Alacaklar -->
-                            <div class="col-xl-6 col-lg-6">
-                                <div class="premium-card p-4 h-100 border-start border-4" style="border-left-color: #f39c12 !important;">
-                                    <div class="d-flex justify-content-between align-items-center mb-4">
-                                        <h6 class="fw-bold text-uppercase mb-0 text-warning" style="letter-spacing: 1px;">Bekleyen Alacaklar (Top 5)</h6>
-                                        <div class="icon-box bg-warning bg-opacity-10 text-warning"><i class="fas fa-arrow-down"></i></div>
-                                    </div>
-                                    <div id="dash_alacak_rozetler" class="d-flex flex-column gap-3 px-1"></div>
-                                </div>
-                            </div>
-
-                            <!-- Borçlar -->
-                            <div class="col-xl-6 col-lg-6">
-                                <div class="premium-card p-4 h-100 border-start border-4" style="border-left-color: #e74c3c !important;">
-                                    <div class="d-flex justify-content-between align-items-center mb-4">
-                                        <h6 class="fw-bold text-uppercase mb-0 text-danger" style="letter-spacing: 1px;">Bekleyen Borçlar (Top 5)</h6>
-                                        <div class="icon-box bg-danger bg-opacity-10 text-danger"><i class="fas fa-arrow-up"></i></div>
-                                    </div>
-                                    <div id="dash_borc_rozetler" class="d-flex flex-column gap-3 px-1"></div>
+                                    <div id="dash_gider_kategorileri" class="px-1"></div>
                                 </div>
                             </div>
                         </div>
@@ -4171,16 +4157,16 @@ window.islemDuzenleAc = function(id) {
                 <div class="modal fade" id="notlarModal" tabindex="-1">
                     <div class="modal-dialog">
                         <div class="modal-content premium-card border-0">
-                            <div class="modal-header bg-warning border-0" style="border-radius: 16px 16px 0 0;">
+                            <div class="modal-header bg-warning border-0" style="border-radius: 6px 6px 0 0;">
                                 <h6 class="modal-title fw-bold text-dark"><i class="fas fa-bolt me-2"></i>Flaş Bildirimler / Notlar</h6>
                                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                             </div>
-                            <div class="modal-body p-4">
-                                <div class="input-group mb-4 shadow-sm rounded-pill overflow-hidden border">
-                                    <input type="text" id="yeni_not_input" class="form-control border-0 px-3" placeholder="Yeni bir not yazın...">
-                                    <button class="btn btn-dark fw-bold px-4" onclick="yeniNotKaydet()">Ekle</button>
+                            <div class="modal-body p-3">
+                                <div class="input-group mb-3 shadow-sm rounded border">
+                                    <input type="text" id="yeni_not_input" class="form-control border-0 px-2" placeholder="Yeni bir not yazın..." style="font-size:0.8rem;">
+                                    <button class="btn btn-dark fw-bold px-3 py-1" onclick="yeniNotKaydet()" style="font-size:0.8rem;">Ekle</button>
                                 </div>
-                                <h6 class="text-muted small fw-bold text-uppercase mb-3 px-2">Aktif Bildirimler</h6>
+                                <h6 class="text-muted small fw-bold text-uppercase mb-2 px-1">Aktif Bildirimler</h6>
                                 <ul class="list-group list-group-flush border-0" id="notlar_listesi"></ul>
                             </div>
                         </div>
@@ -5128,50 +5114,49 @@ window.islemDuzenleAc = function(id) {
 
         else if(sayfa === 'operasyon') {
             mainContent.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
                     <div>
-                        <h2 class="mb-1 text-dark fw-bolder" style="letter-spacing: -0.5px;">Operasyon ve Lojistik</h2>
-                        <p class="text-muted small mb-0">Sefer kârlılıkları ve komisyon yönetim paneli</p>
+                        <h4 class="mb-0 text-dark fw-bold" style="letter-spacing: -0.5px;">Operasyon ve Lojistik</h4>
                     </div>
-                    <button class="btn btn-primary shadow-sm px-4 rounded-pill fw-bold" onclick="operasyonEkleAc()">
-                        <i class="fas fa-plus me-2"></i> Yeni Sefer Ekle
+                    <button class="btn btn-primary btn-sm shadow-sm px-3 rounded" onclick="operasyonEkleAc()">
+                        <i class="fas fa-plus me-1"></i> Yeni Sefer
                     </button>
                 </div>
 
-                <div class="row g-4 mb-4">
+                <div class="row g-3 mb-3">
                     <div class="col-xl-3 col-md-6">
-                        <div class="premium-card p-4 h-100 position-relative overflow-hidden" style="border-left: 4px solid #10b981 !important;">
-                            <div class="position-absolute top-0 end-0 mt-3 me-3 opacity-25"><i class="fas fa-lira-sign fa-3x text-success"></i></div>
-                            <h6 class="text-muted small fw-bold text-uppercase mb-2">Toplam Tahmini TL Hacmi</h6>
-                            <h3 class="mb-0 fw-bolder text-success" id="op_dash_toplam_tl">0,00 ₺</h3>
+                        <div class="premium-card p-3 h-100 position-relative overflow-hidden border-start border-3" style="border-left-color: #10b981 !important;">
+                            <div class="position-absolute top-0 end-0 mt-2 me-2 opacity-25"><i class="fas fa-lira-sign fa-2x text-success"></i></div>
+                            <h6 class="text-muted fw-bold text-uppercase mb-1" style="font-size:0.65rem;">Tahmini TL Hacmi</h6>
+                            <h5 class="mb-0 fw-bold text-success" id="op_dash_toplam_tl">0,00 ₺</h5>
                         </div>
                     </div>
                     <div class="col-xl-3 col-md-6">
-                        <div class="premium-card p-4 h-100 position-relative overflow-hidden" style="border-left: 4px solid #0ea5e9 !important;">
-                            <div class="position-absolute top-0 end-0 mt-3 me-3 opacity-25"><i class="fas fa-euro-sign fa-3x text-info"></i></div>
-                            <h6 class="text-muted small fw-bold text-uppercase mb-2">Toplam EUR Komisyon</h6>
-                            <h3 class="mb-0 fw-bolder text-info" id="op_dash_toplam_eur">0,00 €</h3>
+                        <div class="premium-card p-3 h-100 position-relative overflow-hidden border-start border-3" style="border-left-color: #0ea5e9 !important;">
+                            <div class="position-absolute top-0 end-0 mt-2 me-2 opacity-25"><i class="fas fa-euro-sign fa-2x text-info"></i></div>
+                            <h6 class="text-muted fw-bold text-uppercase mb-1" style="font-size:0.65rem;">EUR Komisyon</h6>
+                            <h5 class="mb-0 fw-bold text-info" id="op_dash_toplam_eur">0,00 €</h5>
                         </div>
                     </div>
                     <div class="col-xl-3 col-md-6">
-                        <div class="premium-card p-4 h-100 position-relative overflow-hidden" style="border-left: 4px solid #f59e0b !important;">
-                            <div class="position-absolute top-0 end-0 mt-3 me-3 opacity-25"><i class="fas fa-hourglass-half fa-3x text-warning"></i></div>
-                            <h6 class="text-muted small fw-bold text-uppercase mb-2">Bekleyen Tahsilat (TL)</h6>
-                            <h3 class="mb-0 fw-bolder text-warning text-dark" id="op_dash_bekleyen_tl">0,00 ₺</h3>
+                        <div class="premium-card p-3 h-100 position-relative overflow-hidden border-start border-3" style="border-left-color: #f59e0b !important;">
+                            <div class="position-absolute top-0 end-0 mt-2 me-2 opacity-25"><i class="fas fa-hourglass-half fa-2x text-warning"></i></div>
+                            <h6 class="text-muted fw-bold text-uppercase mb-1" style="font-size:0.65rem;">Bekleyen Tahsilat (TL)</h6>
+                            <h5 class="mb-0 fw-bold text-warning text-dark" id="op_dash_bekleyen_tl">0,00 ₺</h5>
                         </div>
                     </div>
                     <div class="col-xl-3 col-md-6">
-                        <div class="premium-card p-4 h-100 position-relative overflow-hidden" style="border-left: 4px solid #3b82f6 !important;">
-                            <div class="position-absolute top-0 end-0 mt-3 me-3 opacity-10"><i class="fas fa-truck-moving fa-3x text-primary"></i></div>
-                            <h6 class="text-muted small fw-bold text-uppercase mb-2">En Aktif Nakliyeci</h6>
-                            <h4 class="mb-0 fw-bolder text-primary text-truncate" id="op_dash_best_carrier">-</h4>
+                        <div class="premium-card p-3 h-100 position-relative overflow-hidden border-start border-3" style="border-left-color: #3b82f6 !important;">
+                            <div class="position-absolute top-0 end-0 mt-2 me-2 opacity-10"><i class="fas fa-truck-moving fa-2x text-primary"></i></div>
+                            <h6 class="text-muted fw-bold text-uppercase mb-1" style="font-size:0.65rem;">En Aktif Nakliyeci</h6>
+                            <h5 class="mb-0 fw-bold text-primary text-truncate" id="op_dash_best_carrier">-</h5>
                         </div>
                     </div>
                 </div>
                 
                 <div class="table-container">
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0 text-nowrap" style="font-size: 0.8rem;">
+                        <table class="table table-hover align-middle mb-0 text-nowrap" style="font-size: 0.75rem;">
                             <thead>
                                 <tr>
                                     <th>CPA Tarih</th><th>CPA No</th><th>Tür</th><th>Sevk/Booking</th><th>İhracat Ft</th>
@@ -5186,6 +5171,8 @@ window.islemDuzenleAc = function(id) {
                         </table>
                     </div>
                 </div>
+                
+                
 
                 <!-- OPERASYON EKLEME MODALI (Aynı kalıyor) -->
                 <div class="modal fade" id="operasyonModal" tabindex="-1">
