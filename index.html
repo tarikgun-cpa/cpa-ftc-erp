@@ -419,26 +419,32 @@
     borclar.sort((a,b) => b.bakiyeTry - a.bakiyeTry);
     ortaklar.sort((a,b) => b.bakiyeTry - a.bakiyeTry);
 
-    let alacakHtml = `<div class="mb-2 pb-2 border-bottom border-light"><small class="text-muted d-block">Toplam Tahmini Alacak</small><h5 class="fw-bold text-success mb-0">${toplamAlacakTry.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</h5></div>`;
-    let borcHtml = `<div class="mb-2 pb-2 border-bottom border-light"><small class="text-muted d-block">Toplam Tahmini Borç</small><h5 class="fw-bold text-danger mb-0">${toplamBorcTry.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</h5></div>`;
-    let ortakHtml = `<div class="mb-2 pb-2 border-bottom border-light"><small class="text-muted d-block">Ortaklar Net Durum</small><h5 class="fw-bold ${ortakToplamTry >= 0 ? 'text-success' : 'text-danger'} mb-0">${Math.abs(ortakToplamTry).toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</h5></div>`;
+    // Kompakt Liste Yapısı
+    let alacakHtml = `<div class="mb-1 pb-1 border-bottom border-light"><small class="text-muted d-block" style="font-size:0.65rem;">Toplam Tahmini Alacak</small><h6 class="fw-bold text-success mb-0">${toplamAlacakTry.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</h6></div>`;
+    let borcHtml = `<div class="mb-1 pb-1 border-bottom border-light"><small class="text-muted d-block" style="font-size:0.65rem;">Toplam Tahmini Borç</small><h6 class="fw-bold text-danger mb-0">${toplamBorcTry.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</h6></div>`;
+    let ortakHtml = `<div class="mb-1 pb-1 border-bottom border-light"><small class="text-muted d-block" style="font-size:0.65rem;">Ortaklar Net Durum</small><h6 class="fw-bold ${ortakToplamTry >= 0 ? 'text-success' : 'text-danger'} mb-0">${Math.abs(ortakToplamTry).toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</h6></div>`;
 
     alacaklar.slice(0, 5).forEach(c => {
-        alacakHtml += `<div class="d-flex justify-content-between align-items-center pb-2 mb-2 border-bottom border-light">
-            <span class="text-truncate text-secondary" style="font-size: 0.8rem; max-width: 130px;" title="${c.unvan}">${c.unvan}</span>
-            <strong class="text-dark" style="font-size: 0.9rem;">${c.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2})} <span class="text-muted fw-normal">${c.sembol}</span></strong></div>`;
+        alacakHtml += `<div class="d-flex justify-content-between align-items-center pb-1 mb-1 border-bottom border-light">
+            <span class="text-truncate text-secondary" style="font-size: 0.75rem; max-width: 140px;" title="${c.unvan}">${c.unvan}</span>
+            <strong class="text-dark" style="font-size: 0.8rem;">${c.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2})} <span class="text-muted fw-normal">${c.sembol}</span></strong></div>`;
     });
     borclar.slice(0, 5).forEach(c => {
-        borcHtml += `<div class="d-flex justify-content-between align-items-center pb-2 mb-2 border-bottom border-light">
-            <span class="text-truncate text-secondary" style="font-size: 0.8rem; max-width: 130px;" title="${c.unvan}">${c.unvan}</span>
-            <strong class="text-dark" style="font-size: 0.9rem;">${c.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2})} <span class="text-muted fw-normal">${c.sembol}</span></strong></div>`;
+        borcHtml += `<div class="d-flex justify-content-between align-items-center pb-1 mb-1 border-bottom border-light">
+            <span class="text-truncate text-secondary" style="font-size: 0.75rem; max-width: 140px;" title="${c.unvan}">${c.unvan}</span>
+            <strong class="text-dark" style="font-size: 0.8rem;">${c.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2})} <span class="text-muted fw-normal">${c.sembol}</span></strong></div>`;
     });
     ortaklar.slice(0, 5).forEach(c => {
         let renk = c.bakiye >= 0 ? 'text-success' : 'text-danger';
-        ortakHtml += `<div class="d-flex justify-content-between align-items-center pb-2 mb-2 border-bottom border-light">
-            <span class="text-truncate text-secondary" style="font-size: 0.8rem; max-width: 130px;" title="${c.unvan}">${c.unvan}</span>
-            <strong class="${renk}" style="font-size: 0.9rem;">${Math.abs(c.bakiye).toLocaleString('tr-TR', {minimumFractionDigits: 2})} <span class="text-muted fw-normal">${c.sembol}</span></strong></div>`;
+        ortakHtml += `<div class="d-flex justify-content-between align-items-center pb-1 mb-1 border-bottom border-light">
+            <span class="text-truncate text-secondary" style="font-size: 0.75rem; max-width: 140px;" title="${c.unvan}">${c.unvan}</span>
+            <strong class="${renk}" style="font-size: 0.8rem;">${Math.abs(c.bakiye).toLocaleString('tr-TR', {minimumFractionDigits: 2})} <span class="text-muted fw-normal">${c.sembol}</span></strong></div>`;
     });
+
+    document.getElementById('dash_kasa_listesi').innerHTML = bankalarHtml || '<span class="text-muted small">Kayıtlı veri yok.</span>';
+    document.getElementById('dash_alacak_rozetler').innerHTML = alacaklar.length > 0 ? alacakHtml : '<span class="text-muted small">Alacak bulunmuyor.</span>';
+    document.getElementById('dash_borc_rozetler').innerHTML = borclar.length > 0 ? borcHtml : '<span class="text-muted small">Borç bulunmuyor.</span>';
+    if(document.getElementById('dash_ortak_rozetler')) document.getElementById('dash_ortak_rozetler').innerHTML = ortaklar.length > 0 ? ortakHtml : '<span class="text-muted small">Ortak bulunmuyor.</span>';
 
     document.getElementById('dash_kasa_listesi').innerHTML = bankalarHtml || '<span class="text-muted small">Kayıtlı veri yok.</span>';
     document.getElementById('dash_alacak_rozetler').innerHTML = alacaklar.length > 0 ? alacakHtml : '<span class="text-muted small">Alacak bulunmuyor.</span>';
@@ -548,13 +554,13 @@
     let temettuVergisi = netKar > 0 ? netKar * 0.20 : 0;
     let cekilebilirNakit = netKar > 0 ? netKar - temettuVergisi : 0;
     let temettuHtml = `
-        <div class="mb-2">
-            <span class="text-muted small d-block mb-1">Net Nakit Puan (Tahmini)</span>
-            <h4 class="mb-0 fw-bold text-success">${cekilebilirNakit.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</h4>
+        <div class="mb-1">
+            <span class="text-muted d-block mb-0" style="font-size:0.65rem;">Net Nakit Puan (Tahmini)</span>
+            <h5 class="mb-0 fw-bold text-success">${cekilebilirNakit.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</h5>
         </div>
-        <div class="d-flex justify-content-between border-top pt-2 mt-2" style="font-size:11px;">
+        <div class="d-flex justify-content-between border-top pt-1 mt-1" style="font-size:0.7rem;">
             <span class="text-muted">Brüt Kâr: <strong class="text-dark">${netKar > 0 ? netKar.toLocaleString('tr-TR', {minimumFractionDigits: 2}) : '0,00'} ₺</strong></span>
-            <span class="text-muted">Vergi Yükü (20%): <strong class="text-danger">-${temettuVergisi.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</strong></span>
+            <span class="text-muted">Vergi (%20): <strong class="text-danger">-${temettuVergisi.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</strong></span>
         </div>
     `;
     if(document.getElementById('dash_temettu_alani')) document.getElementById('dash_temettu_alani').innerHTML = temettuHtml;
@@ -711,11 +717,9 @@
       let cpaFaturalar = faturaListesi.filter(f => f.faturaNo && f.faturaNo.startsWith('CPA'));
       let ftcFaturalar = faturaListesi.filter(f => f.faturaNo && f.faturaNo.startsWith('FTC'));
       
-      // CPA Serisi İçin En Büyük Numarayı Bul (Alfanümerik Doğal Sıralama)
-      cpaFaturalar.sort((a, b) => b.faturaNo.localeCompare(a.faturaNo, undefined, {numeric: true, sensitivity: 'base'}));
-      
-      // FTC Serisi İçin En Büyük Numarayı Bul
-      ftcFaturalar.sort((a, b) => b.faturaNo.localeCompare(a.faturaNo, undefined, {numeric: true, sensitivity: 'base'}));
+      // Sadece Numara/Seri Bazlı Ters Sıralama (Tarihe bakmaksızın en büyük fatura numarası her zaman en üste gelir)
+      cpaFaturalar.sort((a, b) => (a.faturaNo > b.faturaNo) ? -1 : 1);
+      ftcFaturalar.sort((a, b) => (a.faturaNo > b.faturaNo) ? -1 : 1);
       
       let sonCpa = cpaFaturalar.length > 0 ? cpaFaturalar[0].faturaNo : "CPA Yok";
       let sonFtc = ftcFaturalar.length > 0 ? ftcFaturalar[0].faturaNo : "FTC Yok";
@@ -4007,22 +4011,22 @@ window.islemDuzenleAc = function(id) {
       if(sayfa === 'dashboard') {
             let mevcutYil = new Date().getFullYear();
             mainContent.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
                     <div>
-                        <h4 class="mb-1 text-dark fw-bold" style="letter-spacing: -0.5px;">Yönetici Özeti</h4>
+                        <h5 class="mb-0 text-dark fw-bold" style="letter-spacing: -0.5px;">Yönetici Özeti</h5>
                     </div>
                     <div class="d-flex gap-2">
                         <div class="d-flex align-items-center bg-white p-1 px-2 rounded shadow-sm border border-light" title="USD/TRY Çevrim Kuru">
-                            <i class="fas fa-dollar-sign text-success me-1"></i><small class="text-muted fw-bold me-1">USD:</small>
-                            <input type="number" id="dash_usd_kur" class="form-control form-control-sm border-0 bg-transparent fw-bold p-0 text-dark" value="34.50" step="0.01" style="width: 50px; outline:none; box-shadow:none; font-size: 0.8rem;" onchange="dashboardCiz()">
+                            <i class="fas fa-dollar-sign text-success me-1" style="font-size:0.75rem;"></i><small class="text-muted fw-bold me-1" style="font-size:0.7rem;">USD:</small>
+                            <input type="number" id="dash_usd_kur" class="form-control form-control-sm border-0 bg-transparent fw-bold p-0 text-dark" value="34.50" step="0.0001" style="width: 70px; outline:none; box-shadow:none; font-size: 0.8rem;" onchange="dashboardCiz()">
                         </div>
                         <div class="d-flex align-items-center bg-white p-1 px-2 rounded shadow-sm border border-light" title="EUR/TRY Çevrim Kuru">
-                            <i class="fas fa-euro-sign text-info me-1"></i><small class="text-muted fw-bold me-1">EUR:</small>
-                            <input type="number" id="dash_eur_kur" class="form-control form-control-sm border-0 bg-transparent fw-bold p-0 text-dark" value="38.20" step="0.01" style="width: 50px; outline:none; box-shadow:none; font-size: 0.8rem;" onchange="dashboardCiz()">
+                            <i class="fas fa-euro-sign text-info me-1" style="font-size:0.75rem;"></i><small class="text-muted fw-bold me-1" style="font-size:0.7rem;">EUR:</small>
+                            <input type="number" id="dash_eur_kur" class="form-control form-control-sm border-0 bg-transparent fw-bold p-0 text-dark" value="38.20" step="0.0001" style="width: 70px; outline:none; box-shadow:none; font-size: 0.8rem;" onchange="dashboardCiz()">
                         </div>
                         <div class="d-flex align-items-center bg-white p-1 px-2 rounded shadow-sm border border-light ms-1">
-                            <i class="fas fa-calendar-alt text-primary me-2"></i>
-                            <select class="form-select form-select-sm border-0 bg-transparent fw-bold p-0 pe-2 text-dark" id="dash_yil_secici" onchange="dashboardCiz()" style="width: 60px; outline:none; box-shadow:none; cursor:pointer; font-size: 0.8rem;">
+                            <i class="fas fa-calendar-alt text-primary me-2" style="font-size:0.75rem;"></i>
+                            <select class="form-select form-select-sm border-0 bg-transparent fw-bold p-0 pe-2 text-dark" id="dash_yil_secici" onchange="dashboardCiz()" style="width: 55px; outline:none; box-shadow:none; cursor:pointer; font-size: 0.8rem;">
                                 <option value="${mevcutYil}">${mevcutYil}</option>
                                 <option value="${mevcutYil - 1}">${mevcutYil - 1}</option>
                             </select>
@@ -4030,16 +4034,16 @@ window.islemDuzenleAc = function(id) {
                     </div>
                 </div>
 
-                <div class="ticker-wrap d-print-none shadow-sm mb-3">
-                    <button class="ticker-btn" onclick="notEkleAc()"><i class="fas fa-bolt me-1"></i> FLAŞ NOT</button>
-                    <div class="ticker-content">
+                <div class="ticker-wrap d-print-none shadow-sm mb-2" style="height: 30px;">
+                    <button class="ticker-btn" onclick="notEkleAc()" style="padding: 2px 10px; font-size: 10px;"><i class="fas fa-bolt me-1"></i> FLAŞ NOT</button>
+                    <div class="ticker-content" style="font-size: 11px;">
                         <div class="ticker-text" id="dash_ticker_text"></div>
                     </div>
                 </div>
 
                 <!-- SEKMELER (TABS) -->
-                <div class="d-print-none">
-                    <ul class="nav custom-tabs" id="dashboardTabs" role="tablist">
+                <div class="d-print-none mb-2">
+                    <ul class="nav custom-tabs mb-0" id="dashboardTabs" role="tablist">
                         <li class="nav-item" role="presentation">
                             <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-bilanco" type="button" role="tab">
                                 <i class="fas fa-balance-scale me-1"></i>Detaylı Bilanço & Nakit
@@ -4056,53 +4060,49 @@ window.islemDuzenleAc = function(id) {
                 <div class="tab-content">
                     <!-- SEKME 1: DETAYLI BİLANÇO VE KASA (Varsayılan Açık) -->
                     <div class="tab-pane fade show active" id="tab-bilanco" role="tabpanel">
-                        <div class="row g-3 mb-3">
+                        <div class="row g-2 mb-2">
                             <div class="col-12">
-                                <div class="premium-card p-3 h-100 border-start border-3" style="border-left-color: #10b981 !important;">
-                                    <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <h6 class="fw-bold mb-0 text-success" style="font-size: 0.75rem;"><i class="fas fa-coins me-2"></i>Kurumsal Kâr & Temettü Özeti</h6>
+                                <div class="premium-card p-2 px-3 h-100 border-start border-3" style="border-left-color: #10b981 !important;">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <h6 class="fw-bold mb-0 text-success" style="font-size: 0.7rem;"><i class="fas fa-coins me-2"></i>Kurumsal Kâr & Temettü Özeti</h6>
                                     </div>
                                     <div id="dash_temettu_alani" class="px-1"></div>
                                 </div>
                             </div>
                             
                             <div class="col-xl-6 col-lg-6">
-                                <div class="premium-card p-3 h-100 border-start border-3" style="border-left-color: #2c3e50 !important;">
-                                    <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 class="fw-bold mb-0 text-dark" style="font-size: 0.75rem;">Likidite (Nakit ve Banka)</h6>
-                                        <div class="icon-box bg-light text-secondary"><i class="fas fa-wallet"></i></div>
+                                <div class="premium-card p-2 px-3 h-100 border-start border-3" style="border-left-color: #2c3e50 !important;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="fw-bold mb-0 text-dark" style="font-size: 0.7rem;">Likidite (Nakit ve Banka)</h6>
                                     </div>
                                     <div id="dash_kasa_listesi" class="px-1"></div>
                                 </div>
                             </div>
                             
                             <div class="col-xl-6 col-lg-6">
-                                <div class="premium-card p-3 h-100 border-start border-3" style="border-left-color: #8b5cf6 !important;">
-                                    <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 class="fw-bold mb-0" style="color: #8b5cf6; font-size: 0.75rem;">Ortaklara Borç/Alacak</h6>
-                                        <div class="icon-box bg-light text-secondary"><i class="fas fa-handshake"></i></div>
+                                <div class="premium-card p-2 px-3 h-100 border-start border-3" style="border-left-color: #8b5cf6 !important;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="fw-bold mb-0" style="color: #8b5cf6; font-size: 0.7rem;">Ortaklara Borç/Alacak</h6>
                                     </div>
-                                    <div id="dash_ortak_rozetler" class="d-flex flex-column gap-2 px-1"></div>
+                                    <div id="dash_ortak_rozetler" class="d-flex flex-column gap-1 px-1"></div>
                                 </div>
                             </div>
 
                             <div class="col-xl-6 col-lg-6">
-                                <div class="premium-card p-3 h-100 border-start border-3" style="border-left-color: #f39c12 !important;">
-                                    <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 class="fw-bold mb-0 text-warning" style="font-size: 0.75rem;">Bekleyen Alacaklar (Top 5)</h6>
-                                        <div class="icon-box bg-warning bg-opacity-10 text-warning"><i class="fas fa-arrow-down"></i></div>
+                                <div class="premium-card p-2 px-3 h-100 border-start border-3" style="border-left-color: #f39c12 !important;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="fw-bold mb-0 text-warning" style="font-size: 0.7rem;">Bekleyen Alacaklar (Top 5)</h6>
                                     </div>
-                                    <div id="dash_alacak_rozetler" class="d-flex flex-column gap-2 px-1"></div>
+                                    <div id="dash_alacak_rozetler" class="d-flex flex-column gap-1 px-1"></div>
                                 </div>
                             </div>
 
                             <div class="col-xl-6 col-lg-6">
-                                <div class="premium-card p-3 h-100 border-start border-3" style="border-left-color: #e74c3c !important;">
-                                    <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 class="fw-bold mb-0 text-danger" style="font-size: 0.75rem;">Bekleyen Borçlar (Top 5)</h6>
-                                        <div class="icon-box bg-danger bg-opacity-10 text-danger"><i class="fas fa-arrow-up"></i></div>
+                                <div class="premium-card p-2 px-3 h-100 border-start border-3" style="border-left-color: #e74c3c !important;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="fw-bold mb-0 text-danger" style="font-size: 0.7rem;">Bekleyen Borçlar (Top 5)</h6>
                                     </div>
-                                    <div id="dash_borc_rozetler" class="d-flex flex-column gap-2 px-1"></div>
+                                    <div id="dash_borc_rozetler" class="d-flex flex-column gap-1 px-1"></div>
                                 </div>
                             </div>
                         </div>
@@ -4110,17 +4110,17 @@ window.islemDuzenleAc = function(id) {
 
                     <!-- SEKME 2: FİNANSAL ANALİZ VE GRAFİKLER -->
                     <div class="tab-pane fade" id="tab-grafik" role="tabpanel">
-                        <div class="row g-3 mb-3">
+                        <div class="row g-2 mb-2">
                             <div class="col-md-12">
-                                <div class="premium-card p-3">
-                                    <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 class="fw-bold text-dark mb-0" style="font-size: 0.75rem;"><i class="fas fa-chart-area text-primary me-2"></i>Aylık Kârlılık Trendi (P&L)</h6>
+                                <div class="premium-card p-2 px-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="fw-bold text-dark mb-0" style="font-size: 0.7rem;"><i class="fas fa-chart-area text-primary me-2"></i>Aylık Kârlılık Trendi (P&L)</h6>
                                     </div>
-                                    <div style="position: relative; height: 220px; width: 100%; margin-bottom: 15px;">
+                                    <div style="position: relative; height: 180px; width: 100%; margin-bottom: 10px;">
                                         <canvas id="pnlChart"></canvas>
                                     </div>
                                     <div class="table-responsive">
-                                        <table class="table table-sm table-hover align-middle mb-0 mt-2 border-top">
+                                        <table class="table table-sm table-hover align-middle mb-0 mt-1 border-top" style="font-size: 0.75rem;">
                                             <thead>
                                                 <tr><th class="ps-2">Dönem (Ay)</th><th class="text-end">Aylık Gelir</th><th class="text-end">Aylık Gider</th><th class="text-end pe-2">Net Kâr / Zarar</th></tr>
                                             </thead>
@@ -4130,23 +4130,23 @@ window.islemDuzenleAc = function(id) {
                                 </div>
                             </div>
                         </div>
-                        <div class="row g-3">
+                        <div class="row g-2">
                             <div class="col-md-6">
-                                <div class="premium-card p-3 h-100">
-                                    <h6 class="fw-bold text-dark mb-3" style="font-size: 0.75rem;"><i class="fas fa-chart-pie text-success me-2"></i>Gelir Dağılımı Sentezi</h6>
-                                    <div style="position: relative; height: 180px; width: 100%; margin-bottom: 20px;" class="d-flex justify-content-center">
+                                <div class="premium-card p-2 px-3 h-100">
+                                    <h6 class="fw-bold text-dark mb-2" style="font-size: 0.7rem;"><i class="fas fa-chart-pie text-success me-2"></i>Gelir Dağılımı Sentezi</h6>
+                                    <div style="position: relative; height: 150px; width: 100%; margin-bottom: 10px;" class="d-flex justify-content-center">
                                         <canvas id="incomeChart"></canvas>
                                     </div>
-                                    <div id="dash_gelir_kategorileri" class="px-1"></div>
+                                    <div id="dash_gelir_kategorileri" class="px-1" style="font-size: 0.75rem;"></div>
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <div class="premium-card p-3 h-100">
-                                    <h6 class="fw-bold text-dark mb-3" style="font-size: 0.75rem;"><i class="fas fa-chart-pie text-danger me-2"></i>Gider Dağılımı Sentezi</h6>
-                                    <div style="position: relative; height: 180px; width: 100%; margin-bottom: 20px;" class="d-flex justify-content-center">
+                                <div class="premium-card p-2 px-3 h-100">
+                                    <h6 class="fw-bold text-dark mb-2" style="font-size: 0.7rem;"><i class="fas fa-chart-pie text-danger me-2"></i>Gider Dağılımı Sentezi</h6>
+                                    <div style="position: relative; height: 150px; width: 100%; margin-bottom: 10px;" class="d-flex justify-content-center">
                                         <canvas id="expenseChart"></canvas>
                                     </div>
-                                    <div id="dash_gider_kategorileri" class="px-1"></div>
+                                    <div id="dash_gider_kategorileri" class="px-1" style="font-size: 0.75rem;"></div>
                                 </div>
                             </div>
                         </div>
@@ -4177,7 +4177,7 @@ window.islemDuzenleAc = function(id) {
                 if(typeof window.dashboardCiz === 'function') window.dashboardCiz(); 
                 if(typeof window.kurlariGuncelle === 'function') window.kurlariGuncelle(); 
             }, 50);
-        }  
+        }
 
         else if(sayfa === 'cariler') {
             mainContent.innerHTML = `
