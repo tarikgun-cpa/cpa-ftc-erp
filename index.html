@@ -129,10 +129,9 @@
 <!-- ANA UYGULAMA -->
 <div class="container-fluid d-none" id="app-container">
     <div class="row">
-        <!-- Sol Menü -->
-        <div class="col-md-2 p-0 sidebar shadow">
+        <!-- Sol Menü (Daha ince ve kompakt) -->
+        <div class="col-auto p-0 sidebar shadow d-none d-md-block" style="width: 230px; z-index: 100;">
             <div class="p-4 text-center mb-2" style="background-color: #ffffff; border-bottom: 2px solid #f1f5f9;">
-                <!-- Sade ve Modern SVG Logo Başlangıcı -->
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 90" style="max-width: 90%; height: auto;">
                     <text x="0" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="800" fill="#1e293b" letter-spacing="-4">CPA</text>
                     <rect x="114" y="32" width="22" height="6" fill="#f39c12" />
@@ -140,7 +139,6 @@
                     <text x="3" y="78" font-family="'Inter', sans-serif" font-size="9" font-weight="600" fill="#475569" letter-spacing="3.2">CERTIFIED PUBLIC ACCOUNTING</text>
                     <text x="3" y="90" font-family="'Inter', sans-serif" font-size="9" font-weight="400" fill="#94a3b8" letter-spacing="3.2">FOREIGN TRADE CONSULTANCY</text>
                 </svg>
-                <!-- Sade ve Modern SVG Logo Bitişi -->
             </div>
             <a href="#" onclick="sayfaYukle('dashboard')"><i class="fas fa-chart-line"></i> Yönetici Özeti</a>
             <a href="#" onclick="sayfaYukle('faturalar')"><i class="fas fa-file-invoice-dollar"></i> Faturalar</a>
@@ -156,8 +154,8 @@
             <a href="#" class="mt-5 text-warning" onclick="cikisYap()"><i class="fas fa-sign-out-alt"></i> Güvenli Çıkış</a>
         </div>
 
-        <!-- Ana İçerik Alanı -->
-        <div class="col-md-10 content-area" id="main-content"></div>
+        <!-- Ana İçerik Alanı (Genişletilmiş) -->
+        <div class="col content-area" id="main-content" style="width: calc(100% - 230px); max-width: 100%;"></div>
     </div>
 </div>
 
@@ -3704,17 +3702,27 @@ window.islemDuzenleAc = function(id) {
       
       let toplamTl = 0; let toplamEur = 0; let bekleyenTl = 0;
       let nakliyeciPuanlari = {};
+      let musteriHacimleri = {};
+      let aylikKomisyonlar = Array(12).fill(0);
+      let seciliYil = new Date().getFullYear().toString();
 
       operasyonListesi.forEach(op => {
           let sembol = op.paraBirimi === 'USD' ? '$' : '€';
           
           toplamTl += (op.tlTutar || 0);
-          if(op.paraBirimi === 'EUR') toplamEur += (op.komisyonTutar || 0);
+          if(op.paraBirimi === 'EUR') {
+              let eurKom = (op.komisyonTutar || 0);
+              toplamEur += eurKom;
+              
+              if(op.cpaTarih) {
+                  let [y, m] = op.cpaTarih.split('-');
+                  if(y === seciliYil) aylikKomisyonlar[parseInt(m) - 1] += eurKom;
+              }
+          }
           if(!op.tahsilEdildi) bekleyenTl += (op.tlTutar || 0);
 
-          if(op.nakliyeFirma) {
-              nakliyeciPuanlari[op.nakliyeFirma] = (nakliyeciPuanlari[op.nakliyeFirma] || 0) + (op.tlTutar || 0);
-          }
+          if(op.nakliyeFirma) nakliyeciPuanlari[op.nakliyeFirma] = (nakliyeciPuanlari[op.nakliyeFirma] || 0) + (op.tlTutar || 0);
+          if(op.firma) musteriHacimleri[op.firma] = (musteriHacimleri[op.firma] || 0) + (op.tlTutar || 0);
 
           // Fatura Numarasından Tıklanabilir Link Oluştur (CPA Faturası Varsa Eşleştirir)
           let fBul = faturaListesi.find(f => f.faturaNo === op.cpaFaturaNo);
@@ -3765,6 +3773,43 @@ window.islemDuzenleAc = function(id) {
       let bestCarrier = '-'; let maxVal = 0;
       for (const [key, value] of Object.entries(nakliyeciPuanlari)) { if (value > maxVal) { maxVal = value; bestCarrier = key; } }
       if(document.getElementById('op_dash_best_carrier')) document.getElementById('op_dash_best_carrier').innerText = bestCarrier;
+
+      // GRAFİKLERİ ÇİZ
+      if(document.getElementById('opMonthlyChart')) {
+          if(window.opMonthlyChartInstance) window.opMonthlyChartInstance.destroy();
+          window.opMonthlyChartInstance = new Chart(document.getElementById('opMonthlyChart'), {
+              type: 'bar',
+              data: {
+                  labels: ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"],
+                  datasets: [{
+                      label: 'Aylık Komisyon (EUR)', data: aylikKomisyonlar,
+                      backgroundColor: 'rgba(59, 130, 246, 0.7)', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 4
+                  }]
+              },
+              options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks:{font:{size:10}} }, x:{ticks:{font:{size:10}}} } }
+          });
+      }
+
+      if(document.getElementById('opCustomerChart')) {
+          if(window.opCustomerChartInstance) window.opCustomerChartInstance.destroy();
+          let musteriSirali = Object.entries(musteriHacimleri).sort((a,b) => b[1] - a[1]).slice(0, 5);
+          
+          let labels = musteriSirali.map(m => m[0]);
+          let data = musteriSirali.map(m => m[1]);
+          let bgColors = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#0ea5e9'];
+
+          window.opCustomerChartInstance = new Chart(document.getElementById('opCustomerChart'), {
+              type: 'doughnut',
+              data: { labels: labels, datasets: [{ data: data, backgroundColor: bgColors, borderWidth: 0 }] },
+              options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false } } }
+          });
+          
+          let mHtml = '';
+          musteriSirali.forEach((m, idx) => {
+              mHtml += `<div class="d-flex justify-content-between mb-1 pb-1 border-bottom"><span class="text-truncate text-muted" style="max-width:130px;" title="${m[0]}"><i class="fas fa-circle me-1" style="font-size:0.5rem; color:${bgColors[idx]}"></i>${m[0]}</span><strong class="text-dark">${m[1].toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</strong></div>`;
+          });
+          document.getElementById('op_musteri_ozeti').innerHTML = mHtml;
+      }
   };
 
   window.operasyonEkleAc = function() {
@@ -5122,65 +5167,107 @@ window.islemDuzenleAc = function(id) {
 
         else if(sayfa === 'operasyon') {
             mainContent.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
                     <div>
-                        <h4 class="mb-0 text-dark fw-bold" style="letter-spacing: -0.5px;">Operasyon ve Lojistik</h4>
+                        <h5 class="mb-0 text-dark fw-bold" style="letter-spacing: -0.5px;">Operasyon ve Lojistik</h5>
                     </div>
                     <button class="btn btn-primary btn-sm shadow-sm px-3 rounded" onclick="operasyonEkleAc()">
                         <i class="fas fa-plus me-1"></i> Yeni Sefer
                     </button>
                 </div>
 
-                <div class="row g-3 mb-3">
-                    <div class="col-xl-3 col-md-6">
-                        <div class="premium-card p-3 h-100 position-relative overflow-hidden border-start border-3" style="border-left-color: #10b981 !important;">
-                            <div class="position-absolute top-0 end-0 mt-2 me-2 opacity-25"><i class="fas fa-lira-sign fa-2x text-success"></i></div>
-                            <h6 class="text-muted fw-bold text-uppercase mb-1" style="font-size:0.65rem;">Tahmini TL Hacmi</h6>
-                            <h5 class="mb-0 fw-bold text-success" id="op_dash_toplam_tl">0,00 ₺</h5>
-                        </div>
-                    </div>
-                    <div class="col-xl-3 col-md-6">
-                        <div class="premium-card p-3 h-100 position-relative overflow-hidden border-start border-3" style="border-left-color: #0ea5e9 !important;">
-                            <div class="position-absolute top-0 end-0 mt-2 me-2 opacity-25"><i class="fas fa-euro-sign fa-2x text-info"></i></div>
-                            <h6 class="text-muted fw-bold text-uppercase mb-1" style="font-size:0.65rem;">EUR Komisyon</h6>
-                            <h5 class="mb-0 fw-bold text-info" id="op_dash_toplam_eur">0,00 €</h5>
-                        </div>
-                    </div>
-                    <div class="col-xl-3 col-md-6">
-                        <div class="premium-card p-3 h-100 position-relative overflow-hidden border-start border-3" style="border-left-color: #f59e0b !important;">
-                            <div class="position-absolute top-0 end-0 mt-2 me-2 opacity-25"><i class="fas fa-hourglass-half fa-2x text-warning"></i></div>
-                            <h6 class="text-muted fw-bold text-uppercase mb-1" style="font-size:0.65rem;">Bekleyen Tahsilat (TL)</h6>
-                            <h5 class="mb-0 fw-bold text-warning text-dark" id="op_dash_bekleyen_tl">0,00 ₺</h5>
-                        </div>
-                    </div>
-                    <div class="col-xl-3 col-md-6">
-                        <div class="premium-card p-3 h-100 position-relative overflow-hidden border-start border-3" style="border-left-color: #3b82f6 !important;">
-                            <div class="position-absolute top-0 end-0 mt-2 me-2 opacity-10"><i class="fas fa-truck-moving fa-2x text-primary"></i></div>
-                            <h6 class="text-muted fw-bold text-uppercase mb-1" style="font-size:0.65rem;">En Aktif Nakliyeci</h6>
-                            <h5 class="mb-0 fw-bold text-primary text-truncate" id="op_dash_best_carrier">-</h5>
-                        </div>
-                    </div>
+                <!-- SEKMELER -->
+                <div class="d-print-none mb-2 mt-1">
+                    <ul class="nav custom-tabs mb-0" id="opTabs" role="tablist" style="padding:3px; margin-bottom:15px;">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#op-analiz" type="button" role="tab">
+                                <i class="fas fa-chart-pie me-1"></i>Operasyon Özeti & Analiz
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#op-liste" type="button" role="tab">
+                                <i class="fas fa-list me-1"></i>Sefer ve Komisyon Listesi
+                            </button>
+                        </li>
+                    </ul>
                 </div>
-                
-                <div class="table-container">
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0 text-nowrap" style="font-size: 0.75rem;">
-                            <thead>
-                                <tr>
-                                    <th>CPA Tarih</th><th>CPA No</th><th>Tür</th><th>Sevk/Booking</th><th>İhracat Ft</th>
-                                    <th>Firma</th><th>Nakliye</th><th>Yük/Uçuş/Kont.</th>
-                                    <th class="text-end">Nalun</th><th class="text-end text-success">Komisyon</th>
-                                    <th class="text-end fw-bold">Total</th><th class="text-end">Kur</th>
-                                    <th class="text-end text-danger">TL Karşılığı</th><th class="text-center">%</th>
-                                    <th class="text-center">İşlemler</th>
-                                </tr>
-                            </thead>
-                            <tbody id="operasyonTabloGövdesi"></tbody>
-                        </table>
+
+                <div class="tab-content">
+                    <!-- SEKME 1: ANALİZ VE GRAFİKLER -->
+                    <div class="tab-pane fade show active" id="op-analiz" role="tabpanel">
+                        <div class="row g-2 mb-3">
+                            <div class="col-xl-3 col-md-6">
+                                <div class="premium-card p-3 h-100 position-relative overflow-hidden border-start border-3" style="border-left-color: #10b981 !important;">
+                                    <div class="position-absolute top-0 end-0 mt-2 me-2 opacity-25"><i class="fas fa-lira-sign fa-2x text-success"></i></div>
+                                    <h6 class="text-muted fw-bold text-uppercase mb-1" style="font-size:0.65rem;">Tahmini TL Hacmi</h6>
+                                    <h5 class="mb-0 fw-bold text-success" id="op_dash_toplam_tl">0,00 ₺</h5>
+                                </div>
+                            </div>
+                            <div class="col-xl-3 col-md-6">
+                                <div class="premium-card p-3 h-100 position-relative overflow-hidden border-start border-3" style="border-left-color: #0ea5e9 !important;">
+                                    <div class="position-absolute top-0 end-0 mt-2 me-2 opacity-25"><i class="fas fa-euro-sign fa-2x text-info"></i></div>
+                                    <h6 class="text-muted fw-bold text-uppercase mb-1" style="font-size:0.65rem;">EUR Komisyon</h6>
+                                    <h5 class="mb-0 fw-bold text-info" id="op_dash_toplam_eur">0,00 €</h5>
+                                </div>
+                            </div>
+                            <div class="col-xl-3 col-md-6">
+                                <div class="premium-card p-3 h-100 position-relative overflow-hidden border-start border-3" style="border-left-color: #f59e0b !important;">
+                                    <div class="position-absolute top-0 end-0 mt-2 me-2 opacity-25"><i class="fas fa-hourglass-half fa-2x text-warning"></i></div>
+                                    <h6 class="text-muted fw-bold text-uppercase mb-1" style="font-size:0.65rem;">Bekleyen Tahsilat (TL)</h6>
+                                    <h5 class="mb-0 fw-bold text-warning text-dark" id="op_dash_bekleyen_tl">0,00 ₺</h5>
+                                </div>
+                            </div>
+                            <div class="col-xl-3 col-md-6">
+                                <div class="premium-card p-3 h-100 position-relative overflow-hidden border-start border-3" style="border-left-color: #3b82f6 !important;">
+                                    <div class="position-absolute top-0 end-0 mt-2 me-2 opacity-10"><i class="fas fa-truck-moving fa-2x text-primary"></i></div>
+                                    <h6 class="text-muted fw-bold text-uppercase mb-1" style="font-size:0.65rem;">En Aktif Nakliyeci</h6>
+                                    <h5 class="mb-0 fw-bold text-primary text-truncate" id="op_dash_best_carrier">-</h5>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-2">
+                            <div class="col-lg-8">
+                                <div class="premium-card p-3 h-100">
+                                    <h6 class="fw-bold text-dark mb-3" style="font-size: 0.75rem;"><i class="fas fa-chart-bar text-primary me-2"></i>Aylık Komisyon Trendi (EUR)</h6>
+                                    <div style="position: relative; height: 230px; width: 100%;">
+                                        <canvas id="opMonthlyChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="premium-card p-3 h-100">
+                                    <h6 class="fw-bold text-dark mb-3" style="font-size: 0.75rem;"><i class="fas fa-chart-pie text-success me-2"></i>Müşteri Ciro Dağılımı (Top 5)</h6>
+                                    <div style="position: relative; height: 160px; width: 100%; margin-bottom: 10px;">
+                                        <canvas id="opCustomerChart"></canvas>
+                                    </div>
+                                    <div id="op_musteri_ozeti" class="mt-2 px-1" style="font-size:0.75rem;"></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                
-                
+
+                    <!-- SEKME 2: LİSTE (Veri Tablosu) -->
+                    <div class="tab-pane fade" id="op-liste" role="tabpanel">
+                        <div class="table-container">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0 text-nowrap" style="font-size: 0.75rem;">
+                                    <thead>
+                                        <tr>
+                                            <th>CPA Tarih</th><th>CPA No</th><th>Tür</th><th>Sevk/Booking</th><th>İhracat Ft</th>
+                                            <th>Firma</th><th>Nakliye</th><th>Yük/Uçuş/Kont.</th>
+                                            <th class="text-end">Nalun</th><th class="text-end text-success">Komisyon</th>
+                                            <th class="text-end fw-bold">Total</th><th class="text-end">Kur</th>
+                                            <th class="text-end text-danger">TL Karşılığı</th><th class="text-center">%</th>
+                                            <th class="text-center">İşlemler</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="operasyonTabloGövdesi"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>        
 
                 <!-- OPERASYON EKLEME MODALI (Aynı kalıyor) -->
                 <div class="modal fade" id="operasyonModal" tabindex="-1">
