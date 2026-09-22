@@ -372,27 +372,6 @@
       } catch(e) { console.log("Canlı kur çekilemedi."); }
   };
 
- // TEK VE DOĞRU YENİ SEFER EKLE FONKSİYONU
-  window.operasyonEkleAc = function() {
-      let form = document.getElementById('operasyonForm');
-      if(form) form.reset();
-      
-      document.getElementById('op_id').value = '';
-      document.getElementById('op_cpaTarih').value = new Date().toISOString().split('T')[0];
-      document.getElementById('op_tasimaTuru').value = 'Karayolu';
-      document.getElementById('op_paraBirimi').value = 'EUR';
-      
-      if(typeof window.opTasimaTuruDegisti === 'function') window.opTasimaTuruDegisti();
-      if(typeof window.opHesapla === 'function') window.opHesapla();
-      
-      let modalEl = document.getElementById('operasyonModal');
-      if(modalEl) {
-          let myModal = bootstrap.Modal.getOrCreateInstance(modalEl);
-          myModal.show();
-      } else {
-          alert("Hata: Operasyon ekleme ekranı yüklenemedi.");
-      }
-  };
 
   window.dashboardCiz = function() {
     if(!document.getElementById('dash_kasa_listesi')) return;
@@ -5338,6 +5317,205 @@ window.islemDuzenleAc = function(id) {
                                     </thead>
                                     <tbody id="operasyonKapananTabloGövdesi"></tbody>
                                 </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Operasyon Ekle/Düzenle Modalı -->
+                <div class="modal fade" id="operasyonModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header bg-dark text-white">
+                                <h5 class="modal-title">Yeni Sefer / Operasyon</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="operasyonForm">
+                                    <input type="hidden" id="op_id">
+                                    
+                                    <!-- Genel Operasyon Bilgileri -->
+                                    <h6 class="border-bottom pb-2 text-primary fw-bold"><i class="fas fa-info-circle me-2"></i>Genel Operasyon Bilgileri</h6>
+                                    <div class="row mb-3">
+                                        <div class="col-md-4">
+                                            <label class="form-label small text-muted fw-bold">Taşıma Türü *</label>
+                                            <select class="form-select border-primary" id="op_tasimaTuru" onchange="opTasimaTuruDegisti()">
+                                                <option value="Karayolu">Karayolu</option>
+                                                <option value="Havayolu">Havayolu</option>
+                                                <option value="Denizyolu">Denizyolu</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label small text-muted fw-bold">Sevk / Çıkış Tarihi</label>
+                                            <input type="date" class="form-control" id="op_sevkTarihi">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label small text-muted fw-bold">Müşteri (Firma) *</label>
+                                            <input type="text" class="form-control" id="op_firma" required>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-8">
+                                            <label class="form-label small text-muted fw-bold">Firma Adresi</label>
+                                            <input type="text" class="form-control" id="op_adres">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label small text-muted fw-bold">İhracat Fatura No</label>
+                                            <input type="text" class="form-control" id="op_ihracatFt">
+                                        </div>
+                                    </div>
+
+                                    <!-- Taşıma Türüne Göre Dinamik Değişen Alanlar -->
+                                    <div class="row mb-3 bg-light p-2 rounded border">
+                                        <!-- Karayolu Alanları -->
+                                        <div class="col-md-6 op_kara_alan">
+                                            <label class="form-label small text-muted fw-bold">Yük No</label>
+                                            <input type="text" class="form-control form-control-sm" id="op_yukNo">
+                                        </div>
+                                        <div class="col-md-6 op_kara_alan">
+                                            <label class="form-label small text-muted fw-bold">Sefer No</label>
+                                            <input type="text" class="form-control form-control-sm" id="op_seferNo">
+                                        </div>
+                                        
+                                        <!-- Havayolu Alanları -->
+                                        <div class="col-md-12 op_hava_alan d-none">
+                                            <label class="form-label small text-muted fw-bold">Uçuş No (AWB)</label>
+                                            <input type="text" class="form-control form-control-sm" id="op_ucusNo">
+                                        </div>
+
+                                        <!-- Denizyolu Alanları -->
+                                        <div class="col-md-4 op_deniz_alan d-none">
+                                            <label class="form-label small text-muted fw-bold">Booking No</label>
+                                            <input type="text" class="form-control form-control-sm" id="op_bookingNo">
+                                        </div>
+                                        <div class="col-md-4 op_deniz_alan d-none">
+                                            <label class="form-label small text-muted fw-bold">Gemi Adı</label>
+                                            <input type="text" class="form-control form-control-sm" id="op_gemiAdi">
+                                        </div>
+                                        <div class="col-md-4 op_deniz_alan d-none">
+                                            <label class="form-label small text-muted fw-bold">Konteyner No</label>
+                                            <input type="text" class="form-control form-control-sm" id="op_konteynerNo">
+                                        </div>
+
+                                        <!-- Ortak Fiziksel Bilgiler -->
+                                        <div class="col-md-6 mt-2">
+                                            <label class="form-label small text-muted fw-bold">Palet Sayısı</label>
+                                            <input type="number" class="form-control form-control-sm" id="op_palet">
+                                        </div>
+                                        <div class="col-md-6 mt-2">
+                                            <label class="form-label small text-muted fw-bold">Brüt Kilo (KG)</label>
+                                            <input type="number" class="form-control form-control-sm" id="op_kilo" step="0.01">
+                                        </div>
+                                    </div>
+
+                                    <!-- Nakliye ve Finansal Veriler -->
+                                    <h6 class="border-bottom pb-2 text-primary fw-bold mt-4"><i class="fas fa-truck-loading me-2"></i>Nakliye ve Finansal Bilgiler</h6>
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label small text-muted fw-bold">Nakliye Firması</label>
+                                            <input type="text" class="form-control" id="op_nakliyeFirma">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small text-danger fw-bold">Nakliye Fatura No</label>
+                                            <input type="text" class="form-control border-danger" id="op_nakliyeFtNo">
+                                        </div>
+                                    </div>
+
+                                    <div class="row mb-3">
+                                        <div class="col-md-2">
+                                            <label class="form-label small text-muted fw-bold">Para Birimi *</label>
+                                            <select class="form-select border-success fw-bold text-success" id="op_paraBirimi">
+                                                <option value="EUR">EUR (€)</option>
+                                                <option value="USD">USD ($)</option>
+                                                <option value="TRY">TRY (₺)</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label small text-muted fw-bold">Navlun *</label>
+                                            <input type="number" class="form-control" id="op_nalun" step="0.01" onkeyup="opHesapla()" onchange="opHesapla()">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label small text-muted fw-bold">YDG</label>
+                                            <input type="number" class="form-control" id="op_ydg" step="0.01" onkeyup="opHesapla()" onchange="opHesapla()">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label small text-success fw-bold">Komisyon *</label>
+                                            <input type="number" class="form-control border-success text-success fw-bold" id="op_komisyon" step="0.01" onkeyup="opHesapla()" onchange="opHesapla()">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label small text-muted fw-bold">Döviz Kuru</label>
+                                            <input type="number" class="form-control" id="op_kur" step="0.0001" onkeyup="opHesapla()" onchange="opHesapla()">
+                                        </div>
+                                    </div>
+
+                                    <!-- Otomatik Hesaplanan Alanlar (Salt Okunur) -->
+                                    <div class="row mb-3 align-items-end bg-light p-2 rounded">
+                                        <div class="col-md-4">
+                                            <label class="form-label small text-muted fw-bold">Müşteri Toplam (Döviz)</label>
+                                            <input type="text" class="form-control bg-white fw-bold" id="op_total" readonly>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label small text-muted fw-bold">Komisyon (TL Karşılığı)</label>
+                                            <input type="text" class="form-control border-danger text-danger bg-white fw-bold" id="op_tl" readonly>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label small text-muted fw-bold">Kâr Marjı (%)</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text">%</span>
+                                                <input type="text" class="form-control bg-white text-primary fw-bold" id="op_yuzde" readonly>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Kapanış, Fatura ve Tahsilat Bilgileri -->
+                                    <h6 class="border-bottom pb-2 text-info fw-bold mt-4"><i class="fas fa-file-invoice-dollar me-2"></i>Fatura ve Tahsilat (CPA FTC)</h6>
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label small text-info fw-bold">CPA FTC Fatura No</label>
+                                            <input type="text" class="form-control border-info" id="op_cpaNo">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small text-muted fw-bold">CPA Fatura Tarihi</label>
+                                            <input type="date" class="form-control" id="op_cpaTarih">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3 align-items-end">
+                                        <div class="col-md-4">
+                                            <label class="form-label small text-muted fw-bold">Tahsilat Tarihi</label>
+                                            <input type="date" class="form-control" id="op_odemeTarih">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label small text-muted fw-bold">Tahsil Edilen Tutar</label>
+                                            <input type="number" class="form-control" id="op_odemeTutar" step="0.01">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-check form-switch mt-3" style="transform: scale(1.1); margin-left: 10px;">
+                                                <input class="form-check-input" type="checkbox" id="op_tahsilEdildi">
+                                                <label class="form-check-label text-success fw-bold ms-1" for="op_tahsilEdildi">Dosyayı Kapat (Ödendi)</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                                <button type="button" class="btn btn-primary" onclick="operasyonKaydet()">Kaydet</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- WhatsApp Özet Modalı -->
+                <div class="modal fade" id="opOzetModal" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header bg-success text-white">
+                                <h5 class="modal-title">Operasyon Özeti</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body" id="whatsapp_kart_alani">
                             </div>
                         </div>
                     </div>
