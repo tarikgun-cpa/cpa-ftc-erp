@@ -3711,6 +3711,21 @@ window.islemDuzenleAc = function(id) {
       document.getElementById('op_yuzde').value = yuzde.toFixed(0);
   };
 
+  // YENİ SEFER EKLE BUTONUNU ÇALIŞTIRAN FONKSİYON
+  window.operasyonEkleAc = function() {
+      document.getElementById('operasyonForm').reset();
+      document.getElementById('op_id').value = '';
+      
+      document.getElementById('op_cpaTarih').value = new Date().toISOString().split('T')[0];
+      document.getElementById('op_tasimaTuru').value = 'Karayolu';
+      document.getElementById('op_paraBirimi').value = 'EUR';
+      
+      window.opTasimaTuruDegisti();
+      window.opHesapla();
+      
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('operasyonModal')).show();
+  };
+
   window.operasyonlariCiz = function() {
       const aktifTbody = document.getElementById('operasyonTabloGövdesi');
       const kapananTbody = document.getElementById('operasyonKapananTabloGövdesi');
@@ -3721,24 +3736,25 @@ window.islemDuzenleAc = function(id) {
       let seciliYil = new Date().getFullYear().toString();
       
       // PDF Analiz Değişkenleri
-      let totalCiroUSD = 0, totalCiroEUR = 0, totalCiroTL = 0; // Sadece Komisyon baz alınacak
-      let riskUSD = 0, riskEUR = 0, riskTL = 0; // Toplam risk (Navlun + Komisyon)
+      let totalCiroUSD = 0, totalCiroEUR = 0, totalCiroTL = 0; // Komisyon bazlı ciro
+      let riskUSD = 0, riskEUR = 0, riskTL = 0; // Komisyon bazlı risk (Alacak Riski)
       let toplamNalunGenelTL = 0, toplamKomisyonGenelTL = 0;
       let bekleyenTahsilatListesi = [];
       let ithalatciStats = {}; 
       let nakliyeciStats = {};
-      let aylikModStats = {}; // Sadece Komisyon tutarını tutacak
+      let firmaBorcStats = {}; // Firmaya Göre Borç Durumu Widget'ı için
+      let aylikModStats = {}; // Aylık Ciro
       
       operasyonListesi.forEach(op => {
           let sembol = op.paraBirimi === 'USD' ? '$' : (op.paraBirimi === 'TRY' ? '₺' : '€');
           let kur = parseFloat(op.kur) || 1;
           let totalTutar = parseFloat(op.totalTutar) || 0;
-          let tlTutar = parseFloat(op.tlTutar) || (totalTutar * kur); // Toplam faturanın TL karşılığı
+          let tlTutar = parseFloat(op.tlTutar) || (totalTutar * kur); 
           let nalunTL = (parseFloat(op.nalunTutar) || 0) * kur;
           let komisyonDoviz = parseFloat(op.komisyonTutar) || 0;
           let komisyonTL = komisyonDoviz * kur;
 
-          // Ciro Hesabı (1. MADDE - SADECE KOMİSYON TUTARI)
+          // Ciro Hesabı (SADECE KOMİSYON)
           totalCiroTL += komisyonTL;
           if(op.paraBirimi === 'USD') totalCiroUSD += komisyonDoviz;
           else if(op.paraBirimi === 'EUR') totalCiroEUR += komisyonDoviz;
@@ -3746,20 +3762,21 @@ window.islemDuzenleAc = function(id) {
           toplamNalunGenelTL += nalunTL;
           toplamKomisyonGenelTL += komisyonTL;
 
-          // İthalatçı (Müşteri) İstatistikleri (5. MADDE - DÖVİZ NAVLUN VE DÖVİZ KOMİSYON)
+          // İthalatçı (Müşteri) İstatistikleri (DÖVİZ)
           let musteri = op.firma || 'Bilinmeyen Müşteri';
           let musteriKey = musteri + " (" + sembol + ")";
           if(!ithalatciStats[musteriKey]) ithalatciStats[musteriKey] = { nalunDoviz: 0, komisyonDoviz: 0, sembol: sembol };
           ithalatciStats[musteriKey].nalunDoviz += (parseFloat(op.nalunTutar) || 0);
           ithalatciStats[musteriKey].komisyonDoviz += komisyonDoviz;
 
-          // Nakliyeci İstatistikleri (TL)
+          // Nakliyeci İstatistikleri (DÖVİZ)
           let nakliyeci = op.nakliyeFirma || 'Bilinmeyen Nakliyeci';
-          if(!nakliyeciStats[nakliyeci]) nakliyeciStats[nakliyeci] = { odenenTL: 0, kazanilanTL: 0 };
-          nakliyeciStats[nakliyeci].odenenTL += nalunTL;
-          nakliyeciStats[nakliyeci].kazanilanTL += komisyonTL;
+          let nakliyeciKey = nakliyeci + " (" + sembol + ")";
+          if(!nakliyeciStats[nakliyeciKey]) nakliyeciStats[nakliyeciKey] = { isim: nakliyeci, odenenDoviz: 0, kazanilanDoviz: 0, sembol: sembol };
+          nakliyeciStats[nakliyeciKey].odenenDoviz += (parseFloat(op.nalunTutar) || 0);
+          nakliyeciStats[nakliyeciKey].kazanilanDoviz += komisyonDoviz;
 
-          // Aylık Mod Dağılımı (4. MADDE - SADECE KOMİSYON CİROSU)
+          // Aylık Mod Dağılımı (KOMİSYON CİROSU - TL)
           let opTarih = op.cpaTarih || op.sevkTarihi || '-';
           if(opTarih !== '-') {
               let [y, m] = opTarih.split('-');
@@ -3773,19 +3790,25 @@ window.islemDuzenleAc = function(id) {
               }
           }
 
-          // Bekleyen (Açık) Dosyalar İçin Risk ve Tahsilat Hesabı
+          // Bekleyen (Açık) Dosyalar İçin Risk, Tahsilat ve Borç Durumu Hesabı
           if(!op.tahsilEdildi) {
-              riskTL += tlTutar; // Risk faturanın tamamıdır
-              if(op.paraBirimi === 'USD') riskUSD += totalTutar;
-              else if(op.paraBirimi === 'EUR') riskEUR += totalTutar;
+              // RİSK = Bekleyen KOMİSYON Tutarı
+              riskTL += komisyonTL; 
+              if(op.paraBirimi === 'USD') riskUSD += komisyonDoviz;
+              else if(op.paraBirimi === 'EUR') riskEUR += komisyonDoviz;
 
-              // 3. MADDE - BEKLEYEN TAHSİLAT DETAYLARI KOMİSYON TUTARI GÖSTERECEK
+              // Bekleyen Tahsilat Detayları Listesi (Komisyon)
               bekleyenTahsilatListesi.push({
                   nakliyeci: nakliyeci,
                   musteri: musteri,
-                  tutar: komisyonDoviz, // Sadece komisyonu gönderiyoruz
+                  tutar: komisyonDoviz, 
                   birim: sembol
               });
+              
+              // Firmaya Göre Borç Durumu Widget'ı İçin Gruplama
+              if(!firmaBorcStats[nakliyeciKey]) firmaBorcStats[nakliyeciKey] = { isim: nakliyeci, dosyaSayisi: 0, tutar: 0, sembol: sembol };
+              firmaBorcStats[nakliyeciKey].dosyaSayisi += 1;
+              firmaBorcStats[nakliyeciKey].tutar += komisyonDoviz;
           }
 
           // Tablo Satırı Çizimi (Ortak Şablon)
@@ -3828,58 +3851,68 @@ window.islemDuzenleAc = function(id) {
       // ---- PDF WIDGET DOLDURMALARI ----
       // 1. Üst KPI Kartları
       let genelKarlilik = toplamNalunGenelTL > 0 ? (toplamKomisyonGenelTL / toplamNalunGenelTL) * 100 : 0;
-      let anlikUsdKur = document.getElementById('dash_usd_kur') ? parseFloat(document.getElementById('dash_usd_kur').value) : 34.50;
       
-      // USD cironun konsolide görünümü
-      let cevrilmisCiroUSD = totalCiroUSD + (totalCiroEUR * 1.05); // Sabit parite yaklaşımı
+      let cevrilmisCiroUSD = totalCiroUSD + (totalCiroEUR * 1.05); // Sabit parite yaklaşımıyla USD konsolidasyonu
       
-      // 2. MADDE - ALACAK RİSKİ DÖVİZLERİ AYRI GÖSTER
       if(document.getElementById('lt_ciro_usd')) document.getElementById('lt_ciro_usd').innerText = cevrilmisCiroUSD.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' $';
       if(document.getElementById('lt_ciro_tl')) document.getElementById('lt_ciro_tl').innerText = totalCiroTL.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' ₺';
       
       if(document.getElementById('lt_risk_doviz')) document.getElementById('lt_risk_doviz').innerText = riskEUR.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' € / ' + riskUSD.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' $';
       if(document.getElementById('lt_risk_tl')) document.getElementById('lt_risk_tl').innerText = riskTL.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' ₺ (Toplam TL)';
       
-      if(document.getElementById('lt_bekleyen_tl')) document.getElementById('lt_bekleyen_tl').innerText = riskTL.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' ₺';
-      if(document.getElementById('lt_bekleyen_doviz')) document.getElementById('lt_bekleyen_doviz').innerText = riskUSD.toLocaleString('tr-TR',{minimumFractionDigits:0}) + ' $ / ' + riskEUR.toLocaleString('tr-TR',{minimumFractionDigits:0}) + ' €';
       if(document.getElementById('lt_karlilik')) document.getElementById('lt_karlilik').innerText = '%' + genelKarlilik.toFixed(1);
 
-      // 2. Bekleyen Tahsilat Detayları Tablosu
+      // 2. Bekleyen Tahsilat Detayları Tablosu (Sadece Komisyonlar)
       let bekleyenHtml = '';
       bekleyenTahsilatListesi.sort((a,b) => b.tutar - a.tutar).forEach(b => {
           bekleyenHtml += `<tr><td class="text-truncate" style="max-width:100px;">${b.nakliyeci}</td><td class="text-truncate fw-bold" style="max-width:120px;">${b.musteri}</td><td class="text-end fw-bold text-danger">${b.tutar.toLocaleString('tr-TR',{minimumFractionDigits:2})} ${b.birim}</td></tr>`;
       });
       if(document.getElementById('lt_bekleyen_detay')) document.getElementById('lt_bekleyen_detay').innerHTML = bekleyenHtml || '<tr><td colspan="3" class="text-center text-muted">Tahsilat riski yok.</td></tr>';
 
-      // 3. İthalatçı Müşteri Özeti (DÖVİZ OLARAK GÖSTERİM)
+      // 3. Firmaya Göre Borç Durumu Widget'ı (Progress Barlı)
+      let borcHtml = '';
+      let maxBorc = Math.max(...Object.values(firmaBorcStats).map(x => x.tutar), 1);
+      
+      Object.values(firmaBorcStats).sort((a,b) => b.tutar - a.tutar).forEach(v => {
+          let yuzde = (v.tutar / maxBorc) * 100;
+          borcHtml += `
+              <tr>
+                  <td class="fw-bold text-dark" style="width: 50%;">
+                      ${v.isim}
+                      <div class="progress mt-1" style="height: 6px; background-color: #f1f5f9;">
+                          <div class="progress-bar rounded-pill" role="progressbar" style="width: ${yuzde}%; background-color: #ef4444;"></div>
+                      </div>
+                  </td>
+                  <td class="text-muted fw-bold">${v.dosyaSayisi} Dosya</td>
+                  <td class="text-end text-danger fw-bold">${v.tutar.toLocaleString('tr-TR',{minimumFractionDigits:2})} ${v.sembol}</td>
+              </tr>
+          `;
+      });
+      if(document.getElementById('lt_firma_borc_durumu')) document.getElementById('lt_firma_borc_durumu').innerHTML = borcHtml || '<tr><td colspan="3" class="text-center text-muted py-3">Borç kaydı bulunmuyor.</td></tr>';
+
+      // 4. İthalatçı Müşteri Özeti (DÖVİZ)
       let musteriHtml = '';
       Object.entries(ithalatciStats).sort((a,b) => b[1].komisyonDoviz - a[1].komisyonDoviz).forEach(([isim, veri]) => {
-          musteriHtml += `<tr><td class="fw-bold">${isim}</td><td class="text-end">${veri.nalunDoviz.toLocaleString('tr-TR',{minimumFractionDigits:2})} ${veri.sembol}</td><td class="text-end text-success fw-bold">${veri.komisyonDoviz.toLocaleString('tr-TR',{minimumFractionDigits:2})} ${veri.sembol}</td></tr>`;
+          musteriHtml += `<tr><td class="fw-bold">${isim.split(' (')[0]}</td><td class="text-end">${veri.nalunDoviz.toLocaleString('tr-TR',{minimumFractionDigits:2})} ${veri.sembol}</td><td class="text-end text-success fw-bold">${veri.komisyonDoviz.toLocaleString('tr-TR',{minimumFractionDigits:2})} ${veri.sembol}</td></tr>`;
       });
       if(document.getElementById('lt_ithalatci_ozet')) document.getElementById('lt_ithalatci_ozet').innerHTML = musteriHtml || '<tr><td colspan="3">Veri yok.</td></tr>';
 
-      // 4. Nakliyeci Özeti (Değişmedi TL)
+      // 5. Nakliyeci Özeti (DÖVİZ)
       let nakliyeciHtml = '';
-      Object.entries(nakliyeciStats).sort((a,b) => b[1].odenenTL - a[1].odenenTL).forEach(([isim, veri]) => {
-          nakliyeciHtml += `<tr><td class="fw-bold">${isim}</td><td class="text-end">${veri.odenenTL.toLocaleString('tr-TR',{minimumFractionDigits:2})} ₺</td><td class="text-end text-success fw-bold">${veri.kazanilanTL.toLocaleString('tr-TR',{minimumFractionDigits:2})} ₺</td></tr>`;
+      Object.values(nakliyeciStats).sort((a,b) => b.kazanilanDoviz - a.kazanilanDoviz).forEach(veri => {
+          nakliyeciHtml += `<tr><td class="fw-bold">${veri.isim}</td><td class="text-end">${veri.odenenDoviz.toLocaleString('tr-TR',{minimumFractionDigits:2})} ${veri.sembol}</td><td class="text-end text-success fw-bold">${veri.kazanilanDoviz.toLocaleString('tr-TR',{minimumFractionDigits:2})} ${veri.sembol}</td></tr>`;
       });
       if(document.getElementById('lt_nakliyeci_ozet')) document.getElementById('lt_nakliyeci_ozet').innerHTML = nakliyeciHtml || '<tr><td colspan="3">Veri yok.</td></tr>';
 
-      // 5. Aylık Modlara Göre Ciro Dağılımı (KOMİSYON CİROSU OLARAK GÖSTERİM)
+      // 6. Aylık Modlara Göre Ciro Dağılımı (KOMİSYON - TL)
       let modCiroHtml = '';
       Object.keys(aylikModStats).sort().reverse().forEach(donem => {
           let d = aylikModStats[donem];
           modCiroHtml += `<tr><td class="fw-bold">${donem}</td><td class="text-end fw-bold text-dark">${d.toplam.toLocaleString('tr-TR',{minimumFractionDigits:0})} ₺</td><td class="text-end text-primary">${d.Denizyolu.toLocaleString('tr-TR',{minimumFractionDigits:0})} ₺</td><td class="text-end text-secondary">${d.Karayolu.toLocaleString('tr-TR',{minimumFractionDigits:0})} ₺</td><td class="text-end text-info">${d.Havayolu.toLocaleString('tr-TR',{minimumFractionDigits:0})} ₺</td></tr>`;
       });
       if(document.getElementById('lt_aylik_mod_ciro')) document.getElementById('lt_aylik_mod_ciro').innerHTML = modCiroHtml || '<tr><td colspan="5">Aylık sefer kaydı bulunmuyor.</td></tr>';
-
-      // 6. Basit AI Yorum Görüşü (Statik Kontrol)
-      if(document.getElementById('lt_ai_gorusleri')) {
-          let aiText = `Toplam cironuzun tahsil edilmemiş oranı finansal akışınız için önemli bir metriktir. Ortalama kârlılığınız şu an <b>%${genelKarlilik.toFixed(1)}</b>. Karayolu ve Denizyolu operasyonları arasındaki marj farklılıklarını müşteri bazlı tekrar analiz etmeniz önerilir. Nakit devir hızınızı artırmak için vadesi geçen sefer faturalarının tahsilat süreçlerini hızlandırmalısınız.`;
-          document.getElementById('lt_ai_gorusleri').innerHTML = aiText;
-      }
   };
-
+  
   window.operasyonDuzenleAc = function(id) {
       const op = operasyonListesi.find(x => x.id === id);
       if(!op) return;
@@ -5261,30 +5294,23 @@ window.islemDuzenleAc = function(id) {
                     <!-- SEKME 1: ANALİZ VE GRAFİKLER (LojiTrack PDF Formatı) -->
                     <div class="tab-pane fade show active" id="op-analiz" role="tabpanel">
                         
-                        <!-- Üst KPI Kartları -->
+                        <!-- Üst KPI Kartları (3'lü Grid) -->
                         <div class="row g-3 mb-3">
-                            <div class="col-xl-3 col-md-6">
+                            <div class="col-xl-4 col-md-4">
                                 <div class="premium-card p-3 h-100 border-start border-4" style="border-left-color: #2c3e50 !important; background: linear-gradient(145deg, #ffffff, #f8fafc);">
                                     <h6 class="text-muted fw-bold text-uppercase mb-2" style="font-size:0.7rem;">Konsolide Toplam Ciro (Komisyon)</h6>
                                     <h4 class="mb-1 fw-bold text-dark" id="lt_ciro_usd">0,00 $</h4>
                                     <small class="text-secondary fw-medium" id="lt_ciro_tl">0,00 ₺</small>
                                 </div>
                             </div>
-                            <div class="col-xl-3 col-md-6">
+                            <div class="col-xl-4 col-md-4">
                                 <div class="premium-card p-3 h-100 border-start border-4" style="border-left-color: #e74c3c !important; background: linear-gradient(145deg, #ffffff, #fff5f5);">
                                     <h6 class="text-danger fw-bold text-uppercase mb-2" style="font-size:0.7rem;">Toplam Alacak Riski (Güncel)</h6>
                                     <h4 class="mb-1 fw-bold text-danger" id="lt_risk_doviz">0,00 € / 0,00 $</h4>
                                     <small class="text-secondary fw-medium" id="lt_risk_tl">0,00 ₺ (TL Karşılığı)</small>
                                 </div>
                             </div>
-                            <div class="col-xl-3 col-md-6">
-                                <div class="premium-card p-3 h-100 border-start border-4" style="border-left-color: #f39c12 !important; background: linear-gradient(145deg, #ffffff, #fffbeb);">
-                                    <h6 class="text-warning text-dark fw-bold text-uppercase mb-2" style="font-size:0.7rem;">Bekleyen Tahsilat (TL)</h6>
-                                    <h4 class="mb-1 fw-bold text-dark" id="lt_bekleyen_tl">0,00 ₺</h4>
-                                    <small class="text-secondary fw-medium" id="lt_bekleyen_doviz">0,00 $ / 0,00 €</small>
-                                </div>
-                            </div>
-                            <div class="col-xl-3 col-md-6">
+                            <div class="col-xl-4 col-md-4">
                                 <div class="premium-card p-3 h-100 border-start border-4" style="border-left-color: #10b981 !important; background: linear-gradient(145deg, #ffffff, #f0fdf4);">
                                     <h6 class="text-success fw-bold text-uppercase mb-2" style="font-size:0.7rem;">Ortalama Kârlılık Oranı</h6>
                                     <h4 class="mb-1 fw-bold text-success" id="lt_karlilik">%0.0</h4>
@@ -5308,9 +5334,14 @@ window.islemDuzenleAc = function(id) {
                             </div>
                             <div class="col-lg-6">
                                 <div class="premium-card p-3 h-100">
-                                    <h6 class="fw-bold text-dark mb-3 border-bottom pb-2"><i class="fas fa-robot text-primary me-2"></i>LojiTrack AI & Vizyoner Analiz</h6>
-                                    <div id="lt_ai_gorusleri" class="text-secondary" style="font-size:0.85rem; line-height:1.6;">
-                                        Yapay zeka analizleri hesaplanıyor...
+                                    <h6 class="fw-bold text-dark mb-3 border-bottom pb-2"><i class="fas fa-building text-danger me-2"></i>Firmaya Göre Borç Durumu</h6>
+                                    <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+                                        <table class="table table-borderless table-sm align-middle" style="font-size:0.8rem;">
+                                            <thead class="text-muted border-bottom" style="font-size: 0.65rem;">
+                                                <tr><th>FİRMA</th><th>İŞLEM</th><th class="text-end">BORÇ YÜKÜ</th></tr>
+                                            </thead>
+                                            <tbody id="lt_firma_borc_durumu"></tbody>
+                                        </table>
                                     </div>
                                 </div>
                             </div>
@@ -5333,7 +5364,7 @@ window.islemDuzenleAc = function(id) {
                         <div class="row g-3">
                             <div class="col-lg-6">
                                 <div class="premium-card p-3 h-100">
-                                    <h6 class="fw-bold text-dark mb-3 border-bottom pb-2"><i class="fas fa-building text-secondary me-2"></i>İthalatçı (Müşteri) Navlun & Komisyon Özeti</h6>
+                                    <h6 class="fw-bold text-dark mb-3 border-bottom pb-2"><i class="fas fa-handshake text-secondary me-2"></i>İthalatçı (Müşteri) Navlun & Komisyon Özeti</h6>
                                     <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
                                         <table class="table table-sm table-hover text-nowrap" style="font-size:0.75rem;">
                                             <thead class="table-light sticky-top"><tr><th>İthalatçı / Müşteri</th><th class="text-end">Navlun (Döviz)</th><th class="text-end text-success">Komisyon (Döviz)</th></tr></thead>
@@ -5344,10 +5375,10 @@ window.islemDuzenleAc = function(id) {
                             </div>
                             <div class="col-lg-6">
                                 <div class="premium-card p-3 h-100">
-                                    <h6 class="fw-bold text-dark mb-3 border-bottom pb-2"><i class="fas fa-truck text-secondary me-2"></i>Nakliyeci Navlun & Komisyon Özeti (TL)</h6>
+                                    <h6 class="fw-bold text-dark mb-3 border-bottom pb-2"><i class="fas fa-truck text-secondary me-2"></i>Nakliyeci Navlun & Komisyon Özeti (Döviz)</h6>
                                     <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
                                         <table class="table table-sm table-hover text-nowrap" style="font-size:0.75rem;">
-                                            <thead class="table-light sticky-top"><tr><th>Nakliye Firması</th><th class="text-end">Top. Ödenen (TL)</th><th class="text-end text-success">Kazanılan (TL)</th></tr></thead>
+                                            <thead class="table-light sticky-top"><tr><th>Nakliye Firması</th><th class="text-end">Ödenen (Döviz)</th><th class="text-end text-success">Kazanılan (Döviz)</th></tr></thead>
                                             <tbody id="lt_nakliyeci_ozet"></tbody>
                                         </table>
                                     </div>
