@@ -3721,66 +3721,69 @@ window.islemDuzenleAc = function(id) {
       let seciliYil = new Date().getFullYear().toString();
       
       // PDF Analiz Değişkenleri
-      let totalCiroUSD = 0, totalCiroEUR = 0, totalCiroTL = 0;
-      let riskUSD = 0, riskEUR = 0, riskTL = 0;
+      let totalCiroUSD = 0, totalCiroEUR = 0, totalCiroTL = 0; // Sadece Komisyon baz alınacak
+      let riskUSD = 0, riskEUR = 0, riskTL = 0; // Toplam risk (Navlun + Komisyon)
       let toplamNalunGenelTL = 0, toplamKomisyonGenelTL = 0;
       let bekleyenTahsilatListesi = [];
       let ithalatciStats = {}; 
       let nakliyeciStats = {};
-      let aylikModStats = {}; // { '2026-09': {toplam:0, deniz:0, kara:0, hava:0} }
+      let aylikModStats = {}; // Sadece Komisyon tutarını tutacak
       
       operasyonListesi.forEach(op => {
           let sembol = op.paraBirimi === 'USD' ? '$' : (op.paraBirimi === 'TRY' ? '₺' : '€');
           let kur = parseFloat(op.kur) || 1;
           let totalTutar = parseFloat(op.totalTutar) || 0;
-          let tlTutar = parseFloat(op.tlTutar) || (totalTutar * kur);
+          let tlTutar = parseFloat(op.tlTutar) || (totalTutar * kur); // Toplam faturanın TL karşılığı
           let nalunTL = (parseFloat(op.nalunTutar) || 0) * kur;
-          let komisyonTL = (parseFloat(op.komisyonTutar) || 0) * kur;
+          let komisyonDoviz = parseFloat(op.komisyonTutar) || 0;
+          let komisyonTL = komisyonDoviz * kur;
 
-          // Ciro Hesabı (USD'ye ve TL'ye çevirme senaryoları)
-          totalCiroTL += tlTutar;
-          if(op.paraBirimi === 'USD') totalCiroUSD += totalTutar;
-          else if(op.paraBirimi === 'EUR') totalCiroEUR += totalTutar;
+          // Ciro Hesabı (1. MADDE - SADECE KOMİSYON TUTARI)
+          totalCiroTL += komisyonTL;
+          if(op.paraBirimi === 'USD') totalCiroUSD += komisyonDoviz;
+          else if(op.paraBirimi === 'EUR') totalCiroEUR += komisyonDoviz;
 
           toplamNalunGenelTL += nalunTL;
           toplamKomisyonGenelTL += komisyonTL;
 
-          // Müşteri (İthalatçı) ve Nakliyeci İstatistikleri
+          // İthalatçı (Müşteri) İstatistikleri (5. MADDE - DÖVİZ NAVLUN VE DÖVİZ KOMİSYON)
           let musteri = op.firma || 'Bilinmeyen Müşteri';
-          let nakliyeci = op.nakliyeFirma || 'Bilinmeyen Nakliyeci';
-          
-          if(!ithalatciStats[musteri]) ithalatciStats[musteri] = { hacimTL: 0, komisyonTL: 0 };
-          ithalatciStats[musteri].hacimTL += tlTutar;
-          ithalatciStats[musteri].komisyonTL += komisyonTL;
+          let musteriKey = musteri + " (" + sembol + ")";
+          if(!ithalatciStats[musteriKey]) ithalatciStats[musteriKey] = { nalunDoviz: 0, komisyonDoviz: 0, sembol: sembol };
+          ithalatciStats[musteriKey].nalunDoviz += (parseFloat(op.nalunTutar) || 0);
+          ithalatciStats[musteriKey].komisyonDoviz += komisyonDoviz;
 
+          // Nakliyeci İstatistikleri (TL)
+          let nakliyeci = op.nakliyeFirma || 'Bilinmeyen Nakliyeci';
           if(!nakliyeciStats[nakliyeci]) nakliyeciStats[nakliyeci] = { odenenTL: 0, kazanilanTL: 0 };
           nakliyeciStats[nakliyeci].odenenTL += nalunTL;
           nakliyeciStats[nakliyeci].kazanilanTL += komisyonTL;
 
-          // Aylık Mod Dağılımı
+          // Aylık Mod Dağılımı (4. MADDE - SADECE KOMİSYON CİROSU)
           let opTarih = op.cpaTarih || op.sevkTarihi || '-';
           if(opTarih !== '-') {
               let [y, m] = opTarih.split('-');
               let donem = `${y}-${m}`;
               if(y === seciliYil) {
                   if(!aylikModStats[donem]) aylikModStats[donem] = {toplam:0, Denizyolu:0, Karayolu:0, Havayolu:0};
-                  aylikModStats[donem].toplam += tlTutar;
+                  aylikModStats[donem].toplam += komisyonTL;
                   if(aylikModStats[donem][op.tasimaTuru] !== undefined) {
-                      aylikModStats[donem][op.tasimaTuru] += tlTutar;
+                      aylikModStats[donem][op.tasimaTuru] += komisyonTL;
                   }
               }
           }
 
           // Bekleyen (Açık) Dosyalar İçin Risk ve Tahsilat Hesabı
           if(!op.tahsilEdildi) {
-              riskTL += tlTutar;
+              riskTL += tlTutar; // Risk faturanın tamamıdır
               if(op.paraBirimi === 'USD') riskUSD += totalTutar;
               else if(op.paraBirimi === 'EUR') riskEUR += totalTutar;
 
+              // 3. MADDE - BEKLEYEN TAHSİLAT DETAYLARI KOMİSYON TUTARI GÖSTERECEK
               bekleyenTahsilatListesi.push({
                   nakliyeci: nakliyeci,
                   musteri: musteri,
-                  tutar: totalTutar,
+                  tutar: komisyonDoviz, // Sadece komisyonu gönderiyoruz
                   birim: sembol
               });
           }
@@ -3826,13 +3829,17 @@ window.islemDuzenleAc = function(id) {
       // 1. Üst KPI Kartları
       let genelKarlilik = toplamNalunGenelTL > 0 ? (toplamKomisyonGenelTL / toplamNalunGenelTL) * 100 : 0;
       let anlikUsdKur = document.getElementById('dash_usd_kur') ? parseFloat(document.getElementById('dash_usd_kur').value) : 34.50;
+      
+      // USD cironun konsolide görünümü
       let cevrilmisCiroUSD = totalCiroUSD + (totalCiroEUR * 1.05); // Sabit parite yaklaşımı
-      let cevrilmisRiskUSD = riskUSD + (riskEUR * 1.05);
-
+      
+      // 2. MADDE - ALACAK RİSKİ DÖVİZLERİ AYRI GÖSTER
       if(document.getElementById('lt_ciro_usd')) document.getElementById('lt_ciro_usd').innerText = cevrilmisCiroUSD.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' $';
       if(document.getElementById('lt_ciro_tl')) document.getElementById('lt_ciro_tl').innerText = totalCiroTL.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' ₺';
-      if(document.getElementById('lt_risk_usd')) document.getElementById('lt_risk_usd').innerText = cevrilmisRiskUSD.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' $';
-      if(document.getElementById('lt_risk_tl')) document.getElementById('lt_risk_tl').innerText = riskTL.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' ₺';
+      
+      if(document.getElementById('lt_risk_doviz')) document.getElementById('lt_risk_doviz').innerText = riskEUR.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' € / ' + riskUSD.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' $';
+      if(document.getElementById('lt_risk_tl')) document.getElementById('lt_risk_tl').innerText = riskTL.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' ₺ (Toplam TL)';
+      
       if(document.getElementById('lt_bekleyen_tl')) document.getElementById('lt_bekleyen_tl').innerText = riskTL.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' ₺';
       if(document.getElementById('lt_bekleyen_doviz')) document.getElementById('lt_bekleyen_doviz').innerText = riskUSD.toLocaleString('tr-TR',{minimumFractionDigits:0}) + ' $ / ' + riskEUR.toLocaleString('tr-TR',{minimumFractionDigits:0}) + ' €';
       if(document.getElementById('lt_karlilik')) document.getElementById('lt_karlilik').innerText = '%' + genelKarlilik.toFixed(1);
@@ -3844,21 +3851,21 @@ window.islemDuzenleAc = function(id) {
       });
       if(document.getElementById('lt_bekleyen_detay')) document.getElementById('lt_bekleyen_detay').innerHTML = bekleyenHtml || '<tr><td colspan="3" class="text-center text-muted">Tahsilat riski yok.</td></tr>';
 
-      // 3. İthalatçı Müşteri Özeti
+      // 3. İthalatçı Müşteri Özeti (DÖVİZ OLARAK GÖSTERİM)
       let musteriHtml = '';
-      Object.entries(ithalatciStats).sort((a,b) => b[1].hacimTL - a[1].hacimTL).forEach(([isim, veri]) => {
-          musteriHtml += `<tr><td class="fw-bold">${isim}</td><td class="text-end">${veri.hacimTL.toLocaleString('tr-TR',{minimumFractionDigits:2})} ₺</td><td class="text-end text-success fw-bold">${veri.komisyonTL.toLocaleString('tr-TR',{minimumFractionDigits:2})} ₺</td></tr>`;
+      Object.entries(ithalatciStats).sort((a,b) => b[1].komisyonDoviz - a[1].komisyonDoviz).forEach(([isim, veri]) => {
+          musteriHtml += `<tr><td class="fw-bold">${isim}</td><td class="text-end">${veri.nalunDoviz.toLocaleString('tr-TR',{minimumFractionDigits:2})} ${veri.sembol}</td><td class="text-end text-success fw-bold">${veri.komisyonDoviz.toLocaleString('tr-TR',{minimumFractionDigits:2})} ${veri.sembol}</td></tr>`;
       });
       if(document.getElementById('lt_ithalatci_ozet')) document.getElementById('lt_ithalatci_ozet').innerHTML = musteriHtml || '<tr><td colspan="3">Veri yok.</td></tr>';
 
-      // 4. Nakliyeci Özeti
+      // 4. Nakliyeci Özeti (Değişmedi TL)
       let nakliyeciHtml = '';
       Object.entries(nakliyeciStats).sort((a,b) => b[1].odenenTL - a[1].odenenTL).forEach(([isim, veri]) => {
           nakliyeciHtml += `<tr><td class="fw-bold">${isim}</td><td class="text-end">${veri.odenenTL.toLocaleString('tr-TR',{minimumFractionDigits:2})} ₺</td><td class="text-end text-success fw-bold">${veri.kazanilanTL.toLocaleString('tr-TR',{minimumFractionDigits:2})} ₺</td></tr>`;
       });
       if(document.getElementById('lt_nakliyeci_ozet')) document.getElementById('lt_nakliyeci_ozet').innerHTML = nakliyeciHtml || '<tr><td colspan="3">Veri yok.</td></tr>';
 
-      // 5. Aylık Modlara Göre Ciro Dağılımı
+      // 5. Aylık Modlara Göre Ciro Dağılımı (KOMİSYON CİROSU OLARAK GÖSTERİM)
       let modCiroHtml = '';
       Object.keys(aylikModStats).sort().reverse().forEach(donem => {
           let d = aylikModStats[donem];
@@ -3872,7 +3879,7 @@ window.islemDuzenleAc = function(id) {
           document.getElementById('lt_ai_gorusleri').innerHTML = aiText;
       }
   };
-  
+
   window.operasyonDuzenleAc = function(id) {
       const op = operasyonListesi.find(x => x.id === id);
       if(!op) return;
@@ -5258,7 +5265,7 @@ window.islemDuzenleAc = function(id) {
                         <div class="row g-3 mb-3">
                             <div class="col-xl-3 col-md-6">
                                 <div class="premium-card p-3 h-100 border-start border-4" style="border-left-color: #2c3e50 !important; background: linear-gradient(145deg, #ffffff, #f8fafc);">
-                                    <h6 class="text-muted fw-bold text-uppercase mb-2" style="font-size:0.7rem;">Konsolide Toplam Ciro</h6>
+                                    <h6 class="text-muted fw-bold text-uppercase mb-2" style="font-size:0.7rem;">Konsolide Toplam Ciro (Komisyon)</h6>
                                     <h4 class="mb-1 fw-bold text-dark" id="lt_ciro_usd">0,00 $</h4>
                                     <small class="text-secondary fw-medium" id="lt_ciro_tl">0,00 ₺</small>
                                 </div>
@@ -5266,8 +5273,8 @@ window.islemDuzenleAc = function(id) {
                             <div class="col-xl-3 col-md-6">
                                 <div class="premium-card p-3 h-100 border-start border-4" style="border-left-color: #e74c3c !important; background: linear-gradient(145deg, #ffffff, #fff5f5);">
                                     <h6 class="text-danger fw-bold text-uppercase mb-2" style="font-size:0.7rem;">Toplam Alacak Riski (Güncel)</h6>
-                                    <h4 class="mb-1 fw-bold text-danger" id="lt_risk_usd">0,00 $</h4>
-                                    <small class="text-secondary fw-medium" id="lt_risk_tl">0,00 ₺</small>
+                                    <h4 class="mb-1 fw-bold text-danger" id="lt_risk_doviz">0,00 € / 0,00 $</h4>
+                                    <small class="text-secondary fw-medium" id="lt_risk_tl">0,00 ₺ (TL Karşılığı)</small>
                                 </div>
                             </div>
                             <div class="col-xl-3 col-md-6">
@@ -5290,10 +5297,10 @@ window.islemDuzenleAc = function(id) {
                         <div class="row g-3 mb-3">
                             <div class="col-lg-6">
                                 <div class="premium-card p-3 h-100">
-                                    <h6 class="fw-bold text-dark mb-3 border-bottom pb-2"><i class="fas fa-exclamation-circle text-warning me-2"></i>Bekleyen Tahsilat Detayları</h6>
+                                    <h6 class="fw-bold text-dark mb-3 border-bottom pb-2"><i class="fas fa-exclamation-circle text-warning me-2"></i>Bekleyen Tahsilat Detayları (Komisyon)</h6>
                                     <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
                                         <table class="table table-sm table-hover text-nowrap" style="font-size:0.75rem;">
-                                            <thead class="table-light sticky-top"><tr><th>Nakliyeci</th><th>İthalatçı / Müşteri</th><th class="text-end">Bekleyen Tutar</th></tr></thead>
+                                            <thead class="table-light sticky-top"><tr><th>Nakliyeci</th><th>İthalatçı / Müşteri</th><th class="text-end">Bekleyen Komisyon</th></tr></thead>
                                             <tbody id="lt_bekleyen_detay"></tbody>
                                         </table>
                                     </div>
@@ -5312,10 +5319,10 @@ window.islemDuzenleAc = function(id) {
                         <div class="row g-3 mb-3">
                             <div class="col-lg-12">
                                 <div class="premium-card p-3">
-                                    <h6 class="fw-bold text-dark mb-3 border-bottom pb-2"><i class="fas fa-chart-area text-info me-2"></i>Modlara Göre Aylık Ciro Dağılımı (TL)</h6>
+                                    <h6 class="fw-bold text-dark mb-3 border-bottom pb-2"><i class="fas fa-chart-area text-info me-2"></i>Modlara Göre Aylık Ciro Dağılımı (Komisyon - TL)</h6>
                                     <div class="table-responsive">
                                         <table class="table table-sm table-hover text-nowrap" style="font-size:0.8rem;">
-                                            <thead class="table-light"><tr><th>Dönem</th><th class="text-end">Toplam Ciro</th><th class="text-end">Denizyolu</th><th class="text-end">Karayolu</th><th class="text-end">Havayolu</th></tr></thead>
+                                            <thead class="table-light"><tr><th>Dönem</th><th class="text-end">Komisyon Ciro</th><th class="text-end">Denizyolu</th><th class="text-end">Karayolu</th><th class="text-end">Havayolu</th></tr></thead>
                                             <tbody id="lt_aylik_mod_ciro"></tbody>
                                         </table>
                                     </div>
@@ -5329,7 +5336,7 @@ window.islemDuzenleAc = function(id) {
                                     <h6 class="fw-bold text-dark mb-3 border-bottom pb-2"><i class="fas fa-building text-secondary me-2"></i>İthalatçı (Müşteri) Navlun & Komisyon Özeti</h6>
                                     <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
                                         <table class="table table-sm table-hover text-nowrap" style="font-size:0.75rem;">
-                                            <thead class="table-light sticky-top"><tr><th>İthalatçı / Müşteri</th><th class="text-end">Top. Hacim (TL)</th><th class="text-end text-success">Top. Komisyon (TL)</th></tr></thead>
+                                            <thead class="table-light sticky-top"><tr><th>İthalatçı / Müşteri</th><th class="text-end">Navlun (Döviz)</th><th class="text-end text-success">Komisyon (Döviz)</th></tr></thead>
                                             <tbody id="lt_ithalatci_ozet"></tbody>
                                         </table>
                                     </div>
@@ -5337,7 +5344,7 @@ window.islemDuzenleAc = function(id) {
                             </div>
                             <div class="col-lg-6">
                                 <div class="premium-card p-3 h-100">
-                                    <h6 class="fw-bold text-dark mb-3 border-bottom pb-2"><i class="fas fa-truck text-secondary me-2"></i>Nakliyeci Navlun & Komisyon Özeti</h6>
+                                    <h6 class="fw-bold text-dark mb-3 border-bottom pb-2"><i class="fas fa-truck text-secondary me-2"></i>Nakliyeci Navlun & Komisyon Özeti (TL)</h6>
                                     <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
                                         <table class="table table-sm table-hover text-nowrap" style="font-size:0.75rem;">
                                             <thead class="table-light sticky-top"><tr><th>Nakliye Firması</th><th class="text-end">Top. Ödenen (TL)</th><th class="text-end text-success">Kazanılan (TL)</th></tr></thead>
@@ -5389,119 +5396,6 @@ window.islemDuzenleAc = function(id) {
                                     </thead>
                                     <tbody id="operasyonKapananTabloGövdesi"></tbody>
                                 </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>    
-
-                <!-- OPERASYON EKLEME MODALI (Aynı kalıyor) -->
-                <div class="modal fade" id="operasyonModal" tabindex="-1">
-                    <div class="modal-dialog modal-xl">
-                        <div class="modal-content premium-card border-0">
-                            <div class="modal-header bg-dark text-white border-0" style="border-radius: 16px 16px 0 0;">
-                                <h5 class="modal-title"><i class="fas fa-truck me-2"></i>Operasyon / Komisyon İşle</h5>
-                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body p-4 bg-light">
-                                <form id="operasyonForm">
-                                    <input type="hidden" id="op_id">
-                                    
-                                    <h6 class="text-primary fw-bolder border-bottom pb-2 mb-3">1. Taşıma Türü ve Firma Bilgileri</h6>
-                                    <div class="row mb-3 g-3">
-                                        <div class="col-md-3">
-                                            <label class="form-label small fw-bold text-primary">Taşıma Türü</label>
-                                            <select class="form-select shadow-sm border-primary fw-bold" id="op_tasimaTuru" onchange="opTasimaTuruDegisti()">
-                                                <option value="Karayolu">Karayolu (TIR)</option>
-                                                <option value="Denizyolu">Denizyolu (Gemi)</option>
-                                                <option value="Havayolu">Havayolu (Uçak)</option>
-                                            </select>
-                                        </div>
-                                        <div class="col-md-3"><label class="form-label small fw-bold">Firma (Müşteri)</label><input type="text" class="form-control shadow-sm fw-bold" id="op_firma" placeholder="Müşteri Ünvanı"></div>
-                                        <div class="col-md-3"><label class="form-label small fw-bold">CPA Fatura Tarihi</label><input type="date" class="form-control shadow-sm" id="op_cpaTarih"></div>
-                                        <div class="col-md-3"><label class="form-label small fw-bold text-primary">CPA Fatura No</label><input type="text" class="form-control shadow-sm border-primary" id="op_cpaNo" placeholder="Örn: CPA2026..."></div>
-                                    </div>
-                                    <div class="row mb-4">
-                                        <div class="col-md-12"><label class="form-label small fw-bold">Firma Açık Adresi (Özet Kartı İçin)</label><input type="text" class="form-control shadow-sm text-primary fst-italic" id="op_adres" placeholder="Örn: Grande-Synthe France"></div>
-                                    </div>
-
-                                    <h6 class="text-danger fw-bolder border-bottom pb-2 mb-3">2. Lojistik ve Sevk Bilgileri</h6>
-                                    <div class="row mb-3 g-3">
-                                        <div class="col-md-3"><label class="form-label small fw-bold">Nakliye Firması</label><input type="text" class="form-control shadow-sm" id="op_nakliyeFirma"></div>
-                                        <div class="col-md-3"><label class="form-label small fw-bold text-danger">Nakliye Fatura No</label><input type="text" class="form-control shadow-sm border-danger" id="op_nakliyeFtNo"></div>
-                                        <div class="col-md-3"><label class="form-label small fw-bold">İhracat Ft (ADS) No</label><input type="text" class="form-control shadow-sm" id="op_ihracatFt"></div>
-                                        <div class="col-md-3"><label class="form-label small fw-bold">Palet Miktarı</label><input type="number" class="form-control shadow-sm" id="op_palet"></div>
-                                    </div>
-                                    
-                                    <!-- DİNAMİK ALANLAR (Taşıma türüne göre değişecek) -->
-                                    <div class="row mb-4 bg-white p-3 rounded-4 shadow-sm border border-light g-3">
-                                        <div class="col-md-3"><label class="form-label small fw-bold">Sevk Tarihi</label><input type="date" class="form-control shadow-sm" id="op_sevkTarihi"></div>
-                                        <div class="col-md-3"><label class="form-label small fw-bold">Kilo (Ağırlık)</label><input type="number" class="form-control shadow-sm" id="op_kilo" step="0.01"></div>
-                                        
-                                        <!-- Kara -->
-                                        <div class="col-md-3 op_kara_alan"><label class="form-label small fw-bold">Yük No</label><input type="text" class="form-control shadow-sm" id="op_yukNo"></div>
-                                        <div class="col-md-3 op_kara_alan"><label class="form-label small fw-bold">Sefer No</label><input type="text" class="form-control shadow-sm" id="op_seferNo"></div>
-                                        
-                                        <!-- Hava -->
-                                        <div class="col-md-3 op_hava_alan d-none"><label class="form-label small fw-bold">Uçuş No (AWB)</label><input type="text" class="form-control shadow-sm border-info" id="op_ucusNo"></div>
-                                        
-                                        <!-- Deniz -->
-                                        <div class="col-md-3 op_deniz_alan d-none"><label class="form-label small fw-bold">Booking No</label><input type="text" class="form-control shadow-sm border-primary" id="op_bookingNo"></div>
-                                        <div class="col-md-3 op_deniz_alan d-none mt-3"><label class="form-label small fw-bold">Gemi Adı (Vessel)</label><input type="text" class="form-control shadow-sm border-primary" id="op_gemiAdi"></div>
-                                        <div class="col-md-3 op_deniz_alan d-none mt-3"><label class="form-label small fw-bold">Konteyner No</label><input type="text" class="form-control shadow-sm border-primary" id="op_konteynerNo"></div>
-                                    </div>
-
-                                    <h6 class="text-success fw-bolder border-bottom pb-2 mb-3">3. Finansal ve Komisyon Hesaplamaları</h6>
-                                    <div class="row mb-3 g-3">
-                                        <div class="col-md-2">
-                                            <label class="form-label small fw-bold">Para Birimi</label>
-                                            <select class="form-select shadow-sm" id="op_paraBirimi"><option value="EUR">Euro (€)</option><option value="USD">Dolar ($)</option><option value="TRY">Türk Lirası (₺)</option></select>
-                                        </div>
-                                        <div class="col-md-2"><label class="form-label small fw-bold">Nalun (Saf)</label><input type="number" class="form-control shadow-sm text-success fw-bold" id="op_nalun" step="0.01" onchange="opHesapla()" onkeyup="opHesapla()"></div>
-                                        <div class="col-md-2"><label class="form-label small fw-bold">YDG</label><input type="number" class="form-control shadow-sm text-success fw-bold" id="op_ydg" step="0.01" onchange="opHesapla()" onkeyup="opHesapla()"></div>
-                                        <div class="col-md-2"><label class="form-label small fw-bold">Komisyon</label><input type="number" class="form-control shadow-sm text-success fw-bold" id="op_komisyon" step="0.01" onchange="opHesapla()" onkeyup="opHesapla()"></div>
-                                        <div class="col-md-2"><label class="form-label small fw-bold">Güncel Kur</label><input type="number" class="form-control shadow-sm" id="op_kur" step="0.0001" onchange="opHesapla()" onkeyup="opHesapla()"></div>
-                                        <div class="col-md-2"><label class="form-label small fw-bold">Toplam Ciro</label><input type="text" class="form-control border-0 bg-secondary bg-opacity-10 fw-bold" id="op_total" readonly></div>
-                                    </div>
-                                    <div class="row mb-4 g-3">
-                                        <div class="col-md-3"><label class="form-label small fw-bold text-danger">TL Karşılığı</label><input type="text" class="form-control shadow-sm border-danger text-danger fw-bold bg-white" id="op_tl" readonly></div>
-                                        <div class="col-md-2"><label class="form-label small fw-bold text-success">Komisyon %</label><input type="text" class="form-control shadow-sm border-success text-success fw-bold bg-white" id="op_yuzde" readonly></div>
-                                    </div>
-
-                                    <h6 class="text-warning text-dark fw-bolder border-bottom pb-2 mb-3">4. Tahsilat / ADS Ödeme Bilgileri</h6>
-                                    <div class="row mb-2 align-items-center g-3">
-                                        <div class="col-md-3"><label class="form-label small fw-bold">Ödeme Tarihi</label><input type="date" class="form-control shadow-sm border-warning" id="op_odemeTarih"></div>
-                                        <div class="col-md-3"><label class="form-label small fw-bold">Ödenen Tutar</label><input type="number" class="form-control shadow-sm border-warning" id="op_odemeTutar" step="0.01"></div>
-                                        <div class="col-md-6 pt-3">
-                                            <div class="form-check form-switch fs-5 bg-white p-2 rounded-pill shadow-sm border d-inline-block px-4">
-                                                <input class="form-check-input" type="checkbox" id="op_tahsilEdildi" style="cursor:pointer;">
-                                                <label class="form-check-label fs-6 ms-2 pt-1 fw-bold text-secondary" style="cursor:pointer;">İşlem Kapandı / Tahsil Edildi</label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </form>
-                            </div>
-                            <div class="modal-footer bg-white border-top-0" style="border-radius: 0 0 16px 16px;">
-                                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">İptal</button>
-                                <button type="button" class="btn btn-primary fw-bold px-5 rounded-pill shadow-sm" onclick="operasyonKaydet()">Kaydet</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- WHATSAPP / MAİL ÖZET KARTI MODALI (Aynı kalıyor) -->
-                               <div class="modal fade" id="opOzetModal" tabindex="-1">
-                    <div class="modal-dialog modal-lg">
-                        <div class="modal-content premium-card border-0">
-                            <div class="modal-header bg-success text-white border-0" style="border-radius: 16px 16px 0 0;">
-                                <h5 class="modal-title fw-bold"><i class="fab fa-whatsapp me-2"></i>Müşteri Özet Kartı</h5>
-                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body p-4 bg-light d-flex justify-content-center">
-                                <div id="whatsapp_kart_alani" class="bg-white shadow-sm" style="width: 100%; max-width: 650px; border-radius:12px; overflow:hidden;"></div>
-                            </div>
-                            <div class="modal-footer border-0">
-                                <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Kapat</button>
-                                <button type="button" class="btn btn-success fw-bold rounded-pill px-4 shadow-sm" onclick="window.print()"><i class="fas fa-print me-2"></i> Yazdır / PDF Kaydet</button>
                             </div>
                         </div>
                     </div>
