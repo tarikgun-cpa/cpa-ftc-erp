@@ -372,20 +372,26 @@
       } catch(e) { console.log("Canlı kur çekilemedi."); }
   };
 
+ // TEK VE DOĞRU YENİ SEFER EKLE FONKSİYONU
   window.operasyonEkleAc = function() {
-      document.getElementById('operasyonForm').reset();
-      document.getElementById('op_id').value = '';
+      let form = document.getElementById('operasyonForm');
+      if(form) form.reset();
       
-      // Varsayılan tarih ve seçimleri ayarla
+      document.getElementById('op_id').value = '';
       document.getElementById('op_cpaTarih').value = new Date().toISOString().split('T')[0];
       document.getElementById('op_tasimaTuru').value = 'Karayolu';
       document.getElementById('op_paraBirimi').value = 'EUR';
       
-      // Sütunları taşıma türüne göre gizle/göster
-      window.opTasimaTuruDegisti();
-      window.opHesapla();
+      if(typeof window.opTasimaTuruDegisti === 'function') window.opTasimaTuruDegisti();
+      if(typeof window.opHesapla === 'function') window.opHesapla();
       
-      bootstrap.Modal.getOrCreateInstance(document.getElementById('operasyonModal')).show();
+      let modalEl = document.getElementById('operasyonModal');
+      if(modalEl) {
+          let myModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+          myModal.show();
+      } else {
+          alert("Hata: Operasyon ekleme ekranı yüklenemedi.");
+      }
   };
 
   window.dashboardCiz = function() {
@@ -3683,14 +3689,12 @@ window.islemDuzenleAc = function(id) {
       finally { btn.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Gönder'; btn.disabled = false; }
   };
 
-  // ---------------- OPERASYON VE KOMİSYON İŞLEMLERİ ----------------
+// ---------------- OPERASYON VE KOMİSYON İŞLEMLERİ ----------------
   window.opTasimaTuruDegisti = function() {
       let tur = document.getElementById('op_tasimaTuru').value;
-      
       document.querySelectorAll('.op_kara_alan').forEach(el => el.classList.add('d-none'));
       document.querySelectorAll('.op_hava_alan').forEach(el => el.classList.add('d-none'));
       document.querySelectorAll('.op_deniz_alan').forEach(el => el.classList.add('d-none'));
-
       if(tur === 'Karayolu') document.querySelectorAll('.op_kara_alan').forEach(el => el.classList.remove('d-none'));
       else if(tur === 'Havayolu') document.querySelectorAll('.op_hava_alan').forEach(el => el.classList.remove('d-none'));
       else if(tur === 'Denizyolu') document.querySelectorAll('.op_deniz_alan').forEach(el => el.classList.remove('d-none'));
@@ -3701,29 +3705,33 @@ window.islemDuzenleAc = function(id) {
       let ydg = parseFloat(document.getElementById('op_ydg').value) || 0;
       let komisyon = parseFloat(document.getElementById('op_komisyon').value) || 0;
       let kur = parseFloat(document.getElementById('op_kur').value) || 0;
-
       let total = nalun + ydg + komisyon;
       let tl = komisyon * kur;
       let yuzde = nalun > 0 ? (komisyon / nalun) * 100 : 0;
-
       document.getElementById('op_total').value = total.toFixed(2);
       document.getElementById('op_tl').value = tl.toFixed(2);
       document.getElementById('op_yuzde').value = yuzde.toFixed(0);
   };
 
-  // YENİ SEFER EKLE BUTONUNU ÇALIŞTIRAN FONKSİYON
+  // TEK VE DOĞRU YENİ SEFER EKLE FONKSİYONU
   window.operasyonEkleAc = function() {
-      document.getElementById('operasyonForm').reset();
-      document.getElementById('op_id').value = '';
+      let form = document.getElementById('operasyonForm');
+      if(form) form.reset();
       
+      document.getElementById('op_id').value = '';
       document.getElementById('op_cpaTarih').value = new Date().toISOString().split('T')[0];
       document.getElementById('op_tasimaTuru').value = 'Karayolu';
       document.getElementById('op_paraBirimi').value = 'EUR';
       
-      window.opTasimaTuruDegisti();
-      window.opHesapla();
+      if(typeof window.opTasimaTuruDegisti === 'function') window.opTasimaTuruDegisti();
+      if(typeof window.opHesapla === 'function') window.opHesapla();
       
-      bootstrap.Modal.getOrCreateInstance(document.getElementById('operasyonModal')).show();
+      let modalEl = document.getElementById('operasyonModal');
+      if(modalEl) {
+          bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      } else {
+          alert("Hata: Operasyon ekleme ekranı yüklenemedi.");
+      }
   };
 
   window.operasyonlariCiz = function() {
@@ -3735,15 +3743,14 @@ window.islemDuzenleAc = function(id) {
       
       let seciliYil = new Date().getFullYear().toString();
       
-      // PDF Analiz Değişkenleri
-      let totalCiroUSD = 0, totalCiroEUR = 0, totalCiroTL = 0; // Komisyon bazlı ciro
-      let riskUSD = 0, riskEUR = 0, riskTL = 0; // Komisyon bazlı risk (Alacak Riski)
+      let totalCiroUSD = 0, totalCiroEUR = 0, totalCiroTL = 0; 
+      let riskUSD = 0, riskEUR = 0, riskTL = 0; 
       let toplamNalunGenelTL = 0, toplamKomisyonGenelTL = 0;
       let bekleyenTahsilatListesi = [];
       let ithalatciStats = {}; 
       let nakliyeciStats = {};
-      let firmaBorcStats = {}; // Firmaya Göre Borç Durumu Widget'ı için
-      let aylikModStats = {}; // Aylık Ciro
+      let firmaBorcStats = {}; 
+      let aylikModStats = {}; 
       
       operasyonListesi.forEach(op => {
           let sembol = op.paraBirimi === 'USD' ? '$' : (op.paraBirimi === 'TRY' ? '₺' : '€');
@@ -3754,7 +3761,6 @@ window.islemDuzenleAc = function(id) {
           let komisyonDoviz = parseFloat(op.komisyonTutar) || 0;
           let komisyonTL = komisyonDoviz * kur;
 
-          // Ciro Hesabı (SADECE KOMİSYON)
           totalCiroTL += komisyonTL;
           if(op.paraBirimi === 'USD') totalCiroUSD += komisyonDoviz;
           else if(op.paraBirimi === 'EUR') totalCiroEUR += komisyonDoviz;
@@ -3762,21 +3768,18 @@ window.islemDuzenleAc = function(id) {
           toplamNalunGenelTL += nalunTL;
           toplamKomisyonGenelTL += komisyonTL;
 
-          // İthalatçı (Müşteri) İstatistikleri (DÖVİZ)
           let musteri = op.firma || 'Bilinmeyen Müşteri';
           let musteriKey = musteri + " (" + sembol + ")";
           if(!ithalatciStats[musteriKey]) ithalatciStats[musteriKey] = { nalunDoviz: 0, komisyonDoviz: 0, sembol: sembol };
           ithalatciStats[musteriKey].nalunDoviz += (parseFloat(op.nalunTutar) || 0);
           ithalatciStats[musteriKey].komisyonDoviz += komisyonDoviz;
 
-          // Nakliyeci İstatistikleri (DÖVİZ)
           let nakliyeci = op.nakliyeFirma || 'Bilinmeyen Nakliyeci';
           let nakliyeciKey = nakliyeci + " (" + sembol + ")";
           if(!nakliyeciStats[nakliyeciKey]) nakliyeciStats[nakliyeciKey] = { isim: nakliyeci, odenenDoviz: 0, kazanilanDoviz: 0, sembol: sembol };
           nakliyeciStats[nakliyeciKey].odenenDoviz += (parseFloat(op.nalunTutar) || 0);
           nakliyeciStats[nakliyeciKey].kazanilanDoviz += komisyonDoviz;
 
-          // Aylık Mod Dağılımı (KOMİSYON CİROSU - TL)
           let opTarih = op.cpaTarih || op.sevkTarihi || '-';
           if(opTarih !== '-') {
               let [y, m] = opTarih.split('-');
@@ -3790,14 +3793,11 @@ window.islemDuzenleAc = function(id) {
               }
           }
 
-          // Bekleyen (Açık) Dosyalar İçin Risk, Tahsilat ve Borç Durumu Hesabı
           if(!op.tahsilEdildi) {
-              // RİSK = Bekleyen KOMİSYON Tutarı
               riskTL += komisyonTL; 
               if(op.paraBirimi === 'USD') riskUSD += komisyonDoviz;
               else if(op.paraBirimi === 'EUR') riskEUR += komisyonDoviz;
-
-              // Bekleyen Tahsilat Detayları Listesi (Komisyon)
+              
               bekleyenTahsilatListesi.push({
                   nakliyeci: nakliyeci,
                   musteri: musteri,
@@ -3805,13 +3805,11 @@ window.islemDuzenleAc = function(id) {
                   birim: sembol
               });
               
-              // Firmaya Göre Borç Durumu Widget'ı İçin Gruplama
               if(!firmaBorcStats[nakliyeciKey]) firmaBorcStats[nakliyeciKey] = { isim: nakliyeci, dosyaSayisi: 0, tutar: 0, sembol: sembol };
               firmaBorcStats[nakliyeciKey].dosyaSayisi += 1;
-              firmaBorcStats[nakliyeciKey].tutar += komisyonDoviz;
+              firmaBorcStats[nakliyeciKey].tutar += komisyonDoviz; 
           }
 
-          // Tablo Satırı Çizimi (Ortak Şablon)
           let fBul = faturaListesi.find(f => f.faturaNo === op.cpaFaturaNo);
           let cpaLinkHtml = fBul ? `<a href="#" onclick="sayfaYukle('faturalar'); setTimeout(() => faturaDuzenleAc('${fBul.id}'), 300); return false;" class="text-primary fw-bold text-decoration-underline">${op.cpaFaturaNo}</a>` : `<span class="text-dark">${op.cpaFaturaNo || '-'}</span>`;
           let ikon = op.tasimaTuru === 'Denizyolu' ? '<i class="fas fa-ship text-primary" title="Deniz"></i>' : (op.tasimaTuru === 'Havayolu' ? '<i class="fas fa-plane text-info" title="Hava"></i>' : '<i class="fas fa-truck text-secondary" title="Kara"></i>');
@@ -3848,28 +3846,22 @@ window.islemDuzenleAc = function(id) {
       if(aktifTbody.innerHTML === '') aktifTbody.innerHTML = '<tr><td colspan="12" class="text-center text-muted py-4">Bekleyen aktif operasyon bulunmuyor.</td></tr>';
       if(kapananTbody && kapananTbody.innerHTML === '') kapananTbody.innerHTML = '<tr><td colspan="12" class="text-center text-muted py-4">Kapanmış operasyon kaydı bulunmuyor.</td></tr>';
 
-      // ---- PDF WIDGET DOLDURMALARI ----
-      // 1. Üst KPI Kartları
       let genelKarlilik = toplamNalunGenelTL > 0 ? (toplamKomisyonGenelTL / toplamNalunGenelTL) * 100 : 0;
-      
-      let cevrilmisCiroUSD = totalCiroUSD + (totalCiroEUR * 1.05); // Sabit parite yaklaşımıyla USD konsolidasyonu
+      let cevrilmisCiroUSD = totalCiroUSD + (totalCiroEUR * 1.05); 
       
       if(document.getElementById('lt_ciro_usd')) document.getElementById('lt_ciro_usd').innerText = cevrilmisCiroUSD.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' $';
       if(document.getElementById('lt_ciro_tl')) document.getElementById('lt_ciro_tl').innerText = totalCiroTL.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' ₺';
       
       if(document.getElementById('lt_risk_doviz')) document.getElementById('lt_risk_doviz').innerText = riskEUR.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' € / ' + riskUSD.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' $';
       if(document.getElementById('lt_risk_tl')) document.getElementById('lt_risk_tl').innerText = riskTL.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' ₺ (Toplam TL)';
-      
       if(document.getElementById('lt_karlilik')) document.getElementById('lt_karlilik').innerText = '%' + genelKarlilik.toFixed(1);
 
-      // 2. Bekleyen Tahsilat Detayları Tablosu (Sadece Komisyonlar)
       let bekleyenHtml = '';
       bekleyenTahsilatListesi.sort((a,b) => b.tutar - a.tutar).forEach(b => {
           bekleyenHtml += `<tr><td class="text-truncate" style="max-width:100px;">${b.nakliyeci}</td><td class="text-truncate fw-bold" style="max-width:120px;">${b.musteri}</td><td class="text-end fw-bold text-danger">${b.tutar.toLocaleString('tr-TR',{minimumFractionDigits:2})} ${b.birim}</td></tr>`;
       });
       if(document.getElementById('lt_bekleyen_detay')) document.getElementById('lt_bekleyen_detay').innerHTML = bekleyenHtml || '<tr><td colspan="3" class="text-center text-muted">Tahsilat riski yok.</td></tr>';
 
-      // 3. Firmaya Göre Borç Durumu Widget'ı (Progress Barlı)
       let borcHtml = '';
       let maxBorc = Math.max(...Object.values(firmaBorcStats).map(x => x.tutar), 1);
       
@@ -3877,34 +3869,31 @@ window.islemDuzenleAc = function(id) {
           let yuzde = (v.tutar / maxBorc) * 100;
           borcHtml += `
               <tr>
-                  <td class="fw-bold text-dark" style="width: 50%;">
+                  <td class="fw-bold text-dark border-0 pb-3" style="width: 45%;">
                       ${v.isim}
-                      <div class="progress mt-1" style="height: 6px; background-color: #f1f5f9;">
+                      <div class="progress mt-2" style="height: 8px; background-color: #f1f5f9; border-radius:10px;">
                           <div class="progress-bar rounded-pill" role="progressbar" style="width: ${yuzde}%; background-color: #ef4444;"></div>
                       </div>
                   </td>
-                  <td class="text-muted fw-bold">${v.dosyaSayisi} Dosya</td>
-                  <td class="text-end text-danger fw-bold">${v.tutar.toLocaleString('tr-TR',{minimumFractionDigits:2})} ${v.sembol}</td>
+                  <td class="text-muted fw-bold border-0 pb-3" style="width: 25%;">${v.dosyaSayisi} Dosya</td>
+                  <td class="text-end text-danger fw-bold border-0 pb-3" style="width: 30%; font-size:0.85rem;">${v.tutar.toLocaleString('tr-TR',{minimumFractionDigits:2})} ${v.sembol}</td>
               </tr>
           `;
       });
-      if(document.getElementById('lt_firma_borc_durumu')) document.getElementById('lt_firma_borc_durumu').innerHTML = borcHtml || '<tr><td colspan="3" class="text-center text-muted py-3">Borç kaydı bulunmuyor.</td></tr>';
+      if(document.getElementById('lt_firma_borc_durumu')) document.getElementById('lt_firma_borc_durumu').innerHTML = borcHtml || '<tr><td colspan="3" class="text-center text-muted py-3">Aktif işlem kaydı bulunmuyor.</td></tr>';
 
-      // 4. İthalatçı Müşteri Özeti (DÖVİZ)
       let musteriHtml = '';
       Object.entries(ithalatciStats).sort((a,b) => b[1].komisyonDoviz - a[1].komisyonDoviz).forEach(([isim, veri]) => {
           musteriHtml += `<tr><td class="fw-bold">${isim.split(' (')[0]}</td><td class="text-end">${veri.nalunDoviz.toLocaleString('tr-TR',{minimumFractionDigits:2})} ${veri.sembol}</td><td class="text-end text-success fw-bold">${veri.komisyonDoviz.toLocaleString('tr-TR',{minimumFractionDigits:2})} ${veri.sembol}</td></tr>`;
       });
       if(document.getElementById('lt_ithalatci_ozet')) document.getElementById('lt_ithalatci_ozet').innerHTML = musteriHtml || '<tr><td colspan="3">Veri yok.</td></tr>';
 
-      // 5. Nakliyeci Özeti (DÖVİZ)
       let nakliyeciHtml = '';
       Object.values(nakliyeciStats).sort((a,b) => b.kazanilanDoviz - a.kazanilanDoviz).forEach(veri => {
           nakliyeciHtml += `<tr><td class="fw-bold">${veri.isim}</td><td class="text-end">${veri.odenenDoviz.toLocaleString('tr-TR',{minimumFractionDigits:2})} ${veri.sembol}</td><td class="text-end text-success fw-bold">${veri.kazanilanDoviz.toLocaleString('tr-TR',{minimumFractionDigits:2})} ${veri.sembol}</td></tr>`;
       });
       if(document.getElementById('lt_nakliyeci_ozet')) document.getElementById('lt_nakliyeci_ozet').innerHTML = nakliyeciHtml || '<tr><td colspan="3">Veri yok.</td></tr>';
 
-      // 6. Aylık Modlara Göre Ciro Dağılımı (KOMİSYON - TL)
       let modCiroHtml = '';
       Object.keys(aylikModStats).sort().reverse().forEach(donem => {
           let d = aylikModStats[donem];
@@ -3912,11 +3901,10 @@ window.islemDuzenleAc = function(id) {
       });
       if(document.getElementById('lt_aylik_mod_ciro')) document.getElementById('lt_aylik_mod_ciro').innerHTML = modCiroHtml || '<tr><td colspan="5">Aylık sefer kaydı bulunmuyor.</td></tr>';
   };
-  
+
   window.operasyonDuzenleAc = function(id) {
       const op = operasyonListesi.find(x => x.id === id);
       if(!op) return;
-      
       document.getElementById('op_id').value = op.id;
       document.getElementById('op_tasimaTuru').value = op.tasimaTuru || 'Karayolu';
       document.getElementById('op_cpaTarih').value = op.cpaTarih || '';
@@ -3927,14 +3915,12 @@ window.islemDuzenleAc = function(id) {
       document.getElementById('op_ihracatFt').value = op.ihracatFaturaNo || '';
       document.getElementById('op_nakliyeFirma').value = op.nakliyeFirma || '';
       document.getElementById('op_nakliyeFtNo').value = op.nakliyeFaturaNo || '';
-      
       document.getElementById('op_yukNo').value = op.yukNo || '';
       document.getElementById('op_seferNo').value = op.seferNo || '';
       document.getElementById('op_ucusNo').value = op.ucusNo || '';
       document.getElementById('op_bookingNo').value = op.bookingNo || '';
       document.getElementById('op_gemiAdi').value = op.gemiAdi || '';
       document.getElementById('op_konteynerNo').value = op.konteynerNo || '';
-
       document.getElementById('op_palet').value = op.palet || '';
       document.getElementById('op_kilo').value = op.kilo || '';
       document.getElementById('op_paraBirimi').value = op.paraBirimi || 'EUR';
@@ -3948,12 +3934,11 @@ window.islemDuzenleAc = function(id) {
 
       window.opTasimaTuruDegisti();
       window.opHesapla();
-      new bootstrap.Modal(document.getElementById('operasyonModal')).show();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('operasyonModal')).show();
   };
 
   window.operasyonKaydet = async function() {
       window.opHesapla(); 
-      
       const id = document.getElementById('op_id').value;
       const data = {
           tasimaTuru: document.getElementById('op_tasimaTuru').value,
@@ -3991,7 +3976,6 @@ window.islemDuzenleAc = function(id) {
           if(id) await updateDoc(doc(db, "operasyonlar", id), data);
           else await addDoc(collection(db, "operasyonlar"), data);
 
-          // OTOMATİK FATURA AÇIKLAMA GÜNCELLEMESİ
           if (data.cpaFaturaNo && data.cpaFaturaNo.trim() !== "") {
               let sembol = data.paraBirimi === 'USD' ? '$' : '€';
               let otoAciklama = `${data.firma} Komisyon: ${data.komisyonTutar.toLocaleString('tr-TR')} ${sembol} x Kur: ${data.kur}`;
@@ -4000,7 +3984,6 @@ window.islemDuzenleAc = function(id) {
                   await updateDoc(doc(db, "faturalar", mevcutFatura.id), { aciklama: otoAciklama });
               }
           }
-
           bootstrap.Modal.getInstance(document.getElementById('operasyonModal')).hide();
       } catch(e) { alert("Hata: " + e.message); }
   };
@@ -4013,49 +3996,29 @@ window.islemDuzenleAc = function(id) {
   window.operasyonOzetAc = function(id) {
       const op = operasyonListesi.find(x => x.id === id);
       if(!op) return;
-
       let sembol = op.paraBirimi === 'USD' ? '$' : '€';
       let v = kunyeVerisi;
       
       let ozelAlanlarHtml = '';
       if (op.tasimaTuru === 'Denizyolu') {
           ozelAlanlarHtml = `
-              <tr style="background-color: #f1f5f9;">
-                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Booking No</td>
-                  <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.bookingNo || '-'}</td>
-              </tr>
-              <tr>
-                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Gemi Adı</td>
-                  <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.gemiAdi || '-'}</td>
-              </tr>
-              <tr style="background-color: #f1f5f9;">
-                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Konteyner No</td>
-                  <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.konteynerNo || '-'}</td>
-              </tr>
+              <tr style="background-color: #f1f5f9;"><td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Booking No</td><td style="padding: 10px 15px; color:#334155;" colspan="3">${op.bookingNo || '-'}</td></tr>
+              <tr><td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Gemi Adı</td><td style="padding: 10px 15px; color:#334155;" colspan="3">${op.gemiAdi || '-'}</td></tr>
+              <tr style="background-color: #f1f5f9;"><td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Konteyner No</td><td style="padding: 10px 15px; color:#334155;" colspan="3">${op.konteynerNo || '-'}</td></tr>
           `;
       } else if (op.tasimaTuru === 'Havayolu') {
           ozelAlanlarHtml = `
-              <tr style="background-color: #f1f5f9;">
-                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Uçuş No (AWB)</td>
-                  <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.ucusNo || '-'}</td>
-              </tr>
+              <tr style="background-color: #f1f5f9;"><td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Uçuş No (AWB)</td><td style="padding: 10px 15px; color:#334155;" colspan="3">${op.ucusNo || '-'}</td></tr>
           `;
-      } else { // Karayolu
+      } else {
           ozelAlanlarHtml = `
-              <tr style="background-color: #f1f5f9;">
-                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Yük No</td>
-                  <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.yukNo || '-'}</td>
-              </tr>
-              <tr>
-                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Sefer No</td>
-                  <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.seferNo || '-'}</td>
-              </tr>
+              <tr style="background-color: #f1f5f9;"><td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Yük No</td><td style="padding: 10px 15px; color:#334155;" colspan="3">${op.yukNo || '-'}</td></tr>
+              <tr><td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Sefer No</td><td style="padding: 10px 15px; color:#334155;" colspan="3">${op.seferNo || '-'}</td></tr>
           `;
       }
 
       let html = `
       <div style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 15px; border: 1px solid #ddd; padding: 20px; border-radius: 8px;">
-          <!-- LOGO ALANI -->
           <div style="text-align: center; margin-bottom: 20px;">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 90" style="max-width: 220px; height: auto;">
                   <text x="0" y="55" font-family="'Inter', sans-serif" font-size="62" font-weight="800" fill="#1e293b" letter-spacing="-4">CPA</text>
@@ -4065,82 +4028,30 @@ window.islemDuzenleAc = function(id) {
                   <text x="3" y="90" font-family="'Inter', sans-serif" font-size="9" font-weight="400" fill="#94a3b8" letter-spacing="3.2">FOREIGN TRADE CONSULTANCY</text>
               </svg>
           </div>
-
-          <!-- Üst Firma Bilgisi -->
           <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-              <tr style="background-color: #f1f5f9;">
-                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b; width: 30%;">Firma</td>
-                  <td style="padding: 10px 15px; font-weight: bold; font-size: 18px; color:#0f172a;">${op.firma || '-'}</td>
-              </tr>
-              <tr>
-                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Adres</td>
-                  <td style="padding: 10px 15px; color: #0ea5e9; font-style: italic;">${op.adres || '-'}</td>
-              </tr>
+              <tr style="background-color: #f1f5f9;"><td style="padding: 10px 15px; font-weight: bold; color:#1e293b; width: 30%;">Firma</td><td style="padding: 10px 15px; font-weight: bold; font-size: 18px; color:#0f172a;">${op.firma || '-'}</td></tr>
+              <tr><td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Adres</td><td style="padding: 10px 15px; color: #0ea5e9; font-style: italic;">${op.adres || '-'}</td></tr>
           </table>
-
-          <!-- Hesaplamalar -->
           <table style="width: 100%; border-collapse: collapse; text-align: center; margin-bottom: 25px; background-color: #f1f5f9;">
-              <tr>
-                  <td style="padding: 10px; color: #f97316; font-weight: bold; font-size: 16px;">Nalun</td>
-                  <td style="padding: 10px; color: #f97316; font-weight: bold; font-size: 16px;">YDG</td>
-                  <td style="padding: 10px; color: #f97316; font-weight: bold; font-size: 16px;">Komisyon</td>
-                  <td style="padding: 10px; color: #f97316; font-weight: bold; font-size: 16px;">Total</td>
-              </tr>
-              <tr>
-                  <td style="padding: 10px; color: #22c55e; font-weight: bold; font-size: 16px;">${op.nalunTutar ? op.nalunTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0'} ${sembol}</td>
-                  <td style="padding: 10px; color: #22c55e; font-weight: bold; font-size: 16px;">${op.ydgTutar > 0 ? op.ydgTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' ' + sembol : ''}</td>
-                  <td style="padding: 10px; color: #22c55e; font-weight: bold; font-size: 16px;">${op.komisyonTutar ? op.komisyonTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0'} ${sembol}</td>
-                  <td style="padding: 10px; color: #22c55e; font-weight: bold; font-size: 16px;">${op.totalTutar ? op.totalTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0'} ${sembol}</td>
-              </tr>
+              <tr><td style="padding: 10px; color: #f97316; font-weight: bold; font-size: 16px;">Nalun</td><td style="padding: 10px; color: #f97316; font-weight: bold; font-size: 16px;">YDG</td><td style="padding: 10px; color: #f97316; font-weight: bold; font-size: 16px;">Komisyon</td><td style="padding: 10px; color: #f97316; font-weight: bold; font-size: 16px;">Total</td></tr>
+              <tr><td style="padding: 10px; color: #22c55e; font-weight: bold; font-size: 16px;">${op.nalunTutar ? op.nalunTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0'} ${sembol}</td><td style="padding: 10px; color: #22c55e; font-weight: bold; font-size: 16px;">${op.ydgTutar > 0 ? op.ydgTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' ' + sembol : ''}</td><td style="padding: 10px; color: #22c55e; font-weight: bold; font-size: 16px;">${op.komisyonTutar ? op.komisyonTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0'} ${sembol}</td><td style="padding: 10px; color: #22c55e; font-weight: bold; font-size: 16px;">${op.totalTutar ? op.totalTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0'} ${sembol}</td></tr>
           </table>
-
-          <!-- Operasyon Detayları -->
           <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;">
-              <tr style="background-color: #f1f5f9;">
-                  <td style="padding: 10px 15px; color: #ef4444; font-weight: bold; width: 30%; font-size: 16px;">Navlun Fatura No</td>
-                  <td style="padding: 10px 15px; color: #ef4444; font-size: 16px; font-weight: 500;">${op.nakliyeFaturaNo || '-'}</td>
-                  <td></td>
-                  <td></td>
-              </tr>
-              <tr>
-                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Nakliye Firması</td>
-                  <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.nakliyeFirma || '-'}</td>
-              </tr>
-              <tr style="background-color: #f1f5f9;">
-                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Palet</td>
-                  <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.palet || '-'}</td>
-              </tr>
-              <tr>
-                  <td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Kilo</td>
-                  <td style="padding: 10px 15px; color:#334155;" colspan="3">${op.kilo ? op.kilo.toLocaleString('tr-TR') : '-'}</td>
-              </tr>
-              
+              <tr style="background-color: #f1f5f9;"><td style="padding: 10px 15px; color: #ef4444; font-weight: bold; width: 30%; font-size: 16px;">Navlun Fatura No</td><td style="padding: 10px 15px; color: #ef4444; font-size: 16px; font-weight: 500;">${op.nakliyeFaturaNo || '-'}</td><td></td><td></td></tr>
+              <tr><td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Nakliye Firması</td><td style="padding: 10px 15px; color:#334155;" colspan="3">${op.nakliyeFirma || '-'}</td></tr>
+              <tr style="background-color: #f1f5f9;"><td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Palet</td><td style="padding: 10px 15px; color:#334155;" colspan="3">${op.palet || '-'}</td></tr>
+              <tr><td style="padding: 10px 15px; font-weight: bold; color:#1e293b;">Kilo</td><td style="padding: 10px 15px; color:#334155;" colspan="3">${op.kilo ? op.kilo.toLocaleString('tr-TR') : '-'}</td></tr>
               ${ozelAlanlarHtml}
-
-              <tr>
-                  <td style="padding: 10px 15px; color: #3b82f6; font-weight: bold; font-size: 16px;">CPA Fatura No</td>
-                  <td style="padding: 10px 15px; color: #3b82f6; font-weight: bold; font-size: 16px;">${op.cpaFaturaNo || '-'}</td>
-                  <td style="padding: 10px 15px; color: #ef4444; font-weight: bold; text-align: right; font-size: 16px;">₺${op.tlTutar ? op.tlTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0,00'}</td>
-                  <td style="padding: 10px 15px; color: #3b82f6; font-weight: bold; text-align: right; font-size: 16px;">${op.komisyonTutar ? op.komisyonTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0'} ${sembol}</td>
-              </tr>
+              <tr><td style="padding: 10px 15px; color: #3b82f6; font-weight: bold; font-size: 16px;">CPA Fatura No</td><td style="padding: 10px 15px; color: #3b82f6; font-weight: bold; font-size: 16px;">${op.cpaFaturaNo || '-'}</td><td style="padding: 10px 15px; color: #ef4444; font-weight: bold; text-align: right; font-size: 16px;">₺${op.tlTutar ? op.tlTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0,00'}</td><td style="padding: 10px 15px; color: #3b82f6; font-weight: bold; text-align: right; font-size: 16px;">${op.komisyonTutar ? op.komisyonTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) : '0'} ${sembol}</td></tr>
           </table>
-
-          <!-- Ödeme Tahsilat -->
           <table style="width: 100%; border-collapse: collapse; text-align: center; border: 2px solid #64748b;">
-              <tr>
-                  <td style="padding: 12px; color: #a855f7; font-weight: bold; border-right: 1px solid #94a3b8; width: 25%; font-size: 16px;">ADS Ödeme</td>
-                  <td style="padding: 12px; color: #a855f7; font-weight: 500; border-right: 1px solid #94a3b8; width: 25%; font-size: 16px;">${op.odemeTarih ? op.odemeTarih.split('-').reverse().join('.') : ''}</td>
-                  <td style="padding: 12px; border-right: 1px solid #94a3b8; width: 25%;"></td>
-                  <td style="padding: 12px; color: #a855f7; font-weight: bold; width: 25%; font-size: 16px;">${op.odemeTutar > 0 ? op.odemeTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' ' + sembol : ''}</td>
-              </tr>
+              <tr><td style="padding: 12px; color: #a855f7; font-weight: bold; border-right: 1px solid #94a3b8; width: 25%; font-size: 16px;">ADS Ödeme</td><td style="padding: 12px; color: #a855f7; font-weight: 500; border-right: 1px solid #94a3b8; width: 25%; font-size: 16px;">${op.odemeTarih ? op.odemeTarih.split('-').reverse().join('.') : ''}</td><td style="padding: 12px; border-right: 1px solid #94a3b8; width: 25%;"></td><td style="padding: 12px; color: #a855f7; font-weight: bold; width: 25%; font-size: 16px;">${op.odemeTutar > 0 ? op.odemeTutar.toLocaleString('tr-TR',{minimumFractionDigits:2}) + ' ' + sembol : ''}</td></tr>
           </table>
       </div>
       `;
-      
       document.getElementById('whatsapp_kart_alani').innerHTML = html;
       new bootstrap.Modal(document.getElementById('opOzetModal')).show();
   };
- 
 </script>
 
 <script>
@@ -5264,7 +5175,7 @@ window.islemDuzenleAc = function(id) {
                     <div>
                         <h5 class="mb-0 text-dark fw-bold" style="letter-spacing: -0.5px;">Operasyon ve Lojistik Yönetimi</h5>
                     </div>
-                    <button class="btn btn-primary btn-sm shadow-sm px-3 rounded fw-bold" onclick="operasyonEkleAc()">
+                    <button class="btn btn-primary btn-sm shadow-sm px-3 rounded fw-bold" onclick="window.operasyonEkleAc()">
                         <i class="fas fa-plus me-1"></i> Yeni Sefer Ekle
                     </button>
                 </div>
@@ -5434,7 +5345,6 @@ window.islemDuzenleAc = function(id) {
             `;
             setTimeout(() => { if(typeof window.operasyonlariCiz === 'function') window.operasyonlariCiz(); }, 50);
         }
-    
 
         else if(sayfa === 'gorevler') {
             mainContent.innerHTML = `
