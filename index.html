@@ -5384,6 +5384,31 @@ window.islemDuzenleAc = function(id) {
                             </div>
                             <div class="col-lg-6">
                                 <div class="premium-card p-3 h-100">
+                                    <h6 class="fw-bold text-dark mb-3 border-bottom pb-2"><i class="fas fa-truck text-secondary me-2"></i>Nakliyeci Navlun & Komisyon Özeti (Döviz)</h6>
+                                    <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+                                        <table class="table table-sm table-hover text-nowrap" style="font-size:0.75rem;">
+                                            <thead class="table-light sticky-top"><tr><th>Nakliye Firması</th><th class="text-end">Ödenen (Döviz)</th><th class="text-end text-success">Kazanılan (Döviz)</th></tr></thead>
+                                            <tbody id="lt_nakliyeci_ozet"></tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-lg-6">
+                                <div class="premium-card p-3 h-100">
+                                    <h6 class="fw-bold text-dark mb-3 border-bottom pb-2"><i class="fas fa-handshake text-secondary me-2"></i>İthalatçı (Müşteri) Navlun & Komisyon Özeti</h6>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-hover text-nowrap" style="font-size:0.75rem;">
+                                            <thead class="table-light"><tr><th>İthalatçı / Müşteri</th><th class="text-end">Navlun (Döviz)</th><th class="text-end text-success">Komisyon (Döviz)</th></tr></thead>
+                                            <tbody id="lt_ithalatci_ozet"></tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6">
+                                <div class="premium-card p-3 h-100">
                                     <h6 class="fw-bold text-dark mb-3 border-bottom pb-2"><i class="fas fa-chart-area text-info me-2"></i>Modlara Göre Aylık Ciro Dağılımı (Komisyon - TL)</h6>
                                     <div class="table-responsive">
                                         <table class="table table-sm table-hover text-nowrap" style="font-size:0.8rem;">
@@ -5395,30 +5420,7 @@ window.islemDuzenleAc = function(id) {
                             </div>
                         </div>
 
-                        <div class="row g-3">
-                            <div class="col-lg-6">
-                                <div class="premium-card p-3 h-100">
-                                    <h6 class="fw-bold text-dark mb-3 border-bottom pb-2"><i class="fas fa-handshake text-secondary me-2"></i>İthalatçı (Müşteri) Navlun & Komisyon Özeti</h6>
-                                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
-                                        <table class="table table-sm table-hover text-nowrap" style="font-size:0.75rem;">
-                                            <thead class="table-light sticky-top"><tr><th>İthalatçı / Müşteri</th><th class="text-end">Navlun (Döviz)</th><th class="text-end text-success">Komisyon (Döviz)</th></tr></thead>
-                                            <tbody id="lt_ithalatci_ozet"></tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-lg-6">
-                                <div class="premium-card p-3 h-100">
-                                    <h6 class="fw-bold text-dark mb-3 border-bottom pb-2"><i class="fas fa-truck text-secondary me-2"></i>Nakliyeci Navlun & Komisyon Özeti (Döviz)</h6>
-                                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
-                                        <table class="table table-sm table-hover text-nowrap" style="font-size:0.75rem;">
-                                            <thead class="table-light sticky-top"><tr><th>Nakliye Firması</th><th class="text-end">Ödenen (Döviz)</th><th class="text-end text-success">Kazanılan (Döviz)</th></tr></thead>
-                                            <tbody id="lt_nakliyeci_ozet"></tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        
                     </div>
 
                     <!-- SEKME 2: AKTİF LİSTE -->
