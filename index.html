@@ -268,7 +268,11 @@
           onSnapshot(collection(db, "hesapHareketleri"), (snapshot) => {
               islemListesi = [];
               snapshot.forEach((doc) => { islemListesi.push({ id: doc.id, ...doc.data() }); });
-              islemListesi.sort((a,b) => (b.tarih?.seconds || 0) - (a.tarih?.seconds || 0));
+              islemListesi.sort((a,b) => {
+                  let tA = a.tarih ? (a.tarih.seconds ? a.tarih.seconds * 1000 : new Date(a.tarih).getTime()) : 0;
+                  let tB = b.tarih ? (b.tarih.seconds ? b.tarih.seconds * 1000 : new Date(b.tarih).getTime()) : 0;
+                  return tB - tA;
+              });
           });
 
           // VERGİLERİ DİNLE
@@ -1912,8 +1916,11 @@ window.islemDuzenleAc = function(id) {
       tutarInput.value = islem.tutar.toString().replace('.', ',');
       
       if (islem.tarih) {
-          let dStr = islem.tarih.seconds ? new Date(islem.tarih.seconds * 1000).toISOString().split('T')[0] : (typeof islem.tarih === 'string' ? islem.tarih : new Date(islem.tarih).toISOString().split('T')[0]);
-          if (document.getElementById('hd_tarih')) document.getElementById('hd_tarih').value = dStr;
+          let dateObj = islem.tarih.seconds ? new Date(islem.tarih.seconds * 1000) : new Date(islem.tarih);
+          if (!isNaN(dateObj)) {
+              let dStr = dateObj.toISOString().split('T')[0];
+              if (document.getElementById('hd_tarih')) document.getElementById('hd_tarih').value = dStr;
+          }
       }
       
       // VİRMAN / DÖVİZ TRANSFERİ İÇİN KARŞI İŞLEMİ (DİĞER BANKAYI) BUL
@@ -2003,14 +2010,12 @@ window.islemDuzenleAc = function(id) {
           
           let islemTarihi;
           if (yeniTarihVal) {
-              // Eğer formdan yeni bir tarih girildiyse, o tarihi yyyy-aa-gg formatında string olarak sakla (Veya Date objesine çevir)
-              // Firebase bazen new Date() fonksiyonunu standart objeye çevirmekte zorlanır. Bu yüzden string veya Timestamp kullanmak en güvenlisidir.
-              // Biz burada ISO String formatına zorluyoruz.
-              islemTarihi = yeniTarihVal + 'T12:00:00Z'; 
+              // Firebase'in doğru Timestamp objesi oluşturabilmesi için native JS Date kullanıyoruz.
+              islemTarihi = new Date(yeniTarihVal);
           } else if (islem.tarih) {
-              islemTarihi = islem.tarih.seconds ? new Date(islem.tarih.seconds * 1000).toISOString() : new Date(islem.tarih).toISOString();
+              islemTarihi = islem.tarih.seconds ? new Date(islem.tarih.seconds * 1000) : new Date(islem.tarih);
           } else {
-              islemTarihi = new Date().toISOString();
+              islemTarihi = new Date();
           }
           // 1. ESKİ CARİ VE BANKA BAKİYESİNİ GERİ AL
           let isOldSistem = eskiCariId.startsWith('SISTEM_') || eskiCariId === 'MUHTELIF_SATICI' || eskiCariId === 'VERGI_DAIRESI';
@@ -3787,8 +3792,8 @@ window.islemDuzenleAc = function(id) {
           }
 
           if(!op.tahsilEdildi) {
-              // Eğer fatura kesilmemişse SADECE "Fatura Kesilmeyi Bekleyenler" listesine ekle
-              if (!op.cpaFaturaNo || op.cpaFaturaNo.trim() === '') {
+              // Eğer fatura kesilmemişse VEYA "-" girilmişse SADECE "Fatura Kesilmeyi Bekleyenler" listesine ekle
+              if (!op.cpaFaturaNo || op.cpaFaturaNo.trim() === '' || op.cpaFaturaNo.trim() === '-') {
                   faturaBekleyenHtml += `<tr><td class="text-truncate fw-bold" style="max-width:120px;">${op.firma}</td><td>${op.sevkTarihi ? op.sevkTarihi.split('-').reverse().join('.') : '-'}</td><td class="text-end fw-bold text-success">${komisyonDoviz.toLocaleString('tr-TR',{minimumFractionDigits:2})} ${sembol}</td></tr>`;
               } else {
                   // Fatura KESİLMİŞ ama TAHSİL EDİLMEMİŞSE (Risk, Bekleyen Tahsilat ve Borç Listelerine Ekle)
