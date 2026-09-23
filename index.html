@@ -2343,8 +2343,8 @@ window.islemDuzenleAc = function(id) {
               await updateDoc(doc(db, "bankalar", karsiBankaId), { bakiye: increment(karsiFark) });
           } else {
               await updateDoc(doc(db, "hesapHareketleri", islemId), {
-                  cariId: yeniCariId, tur: yeniTur, tutar: yeniTutar, yon: yeniYon
-              });
+    cariId: yeniCariId, tur: yeniTur, tutar: yeniTutar, yon: yeniYon, tarih: new Date(document.getElementById('hd_tarih').value)
+});
               
               let isNewSistem = yeniCariId.startsWith('SISTEM_') || yeniCariId === 'MUHTELIF_SATICI' || yeniCariId === 'VERGI_DAIRESI';
               if(!isNewSistem) {
