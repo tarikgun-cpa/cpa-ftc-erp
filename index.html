@@ -1823,7 +1823,10 @@
               eslesmeyenler.forEach(i => {
                   let b = bankaListesi.find(x => x.id === i.bankaId);
                   let bankaAdi = b ? b.hesapAdi : 'Silinmiş Banka';
-                  let d = i.tarih ? new Date(i.tarih.seconds * 1000).toLocaleDateString('tr-TR') : '-';
+                  let d = '-';
+                  if (i.tarih) {
+                      d = i.tarih.seconds ? new Date(i.tarih.seconds * 1000).toLocaleDateString('tr-TR') : new Date(i.tarih).toLocaleDateString('tr-TR');
+                  }
                   let renk = i.tur === 'Tahsilat' ? 'text-success' : 'text-danger';
                   let isaret = i.tur === 'Tahsilat' ? '+' : '-';
                   let birim = b ? (b.paraBirimi === 'USD' ? '$' : (b.paraBirimi === 'EUR' ? '€' : '₺')) : '₺';
@@ -1993,9 +1996,14 @@ window.islemDuzenleAc = function(id) {
 
       try {
           const islem = islemListesi.find(i => i.id === islemId);
-          let islemHamTarih = islem.tarih ? (islem.tarih.seconds * 1000) : 0;
-          // Eğer ekrandan yeni tarih girildiyse onu kullan, yoksa veritabanındaki eski tarihi koru
-          let islemTarihi = yeniTarihVal ? new Date(yeniTarihVal) : (islem.tarih ? new Date(islem.tarih.seconds * 1000) : new Date());
+          let islemHamTarih = islem.tarih ? (islem.tarih.seconds ? (islem.tarih.seconds * 1000) : new Date(islem.tarih).getTime()) : 0;
+          
+          let islemTarihi = new Date();
+          if (yeniTarihVal) {
+              islemTarihi = new Date(yeniTarihVal);
+          } else if (islem.tarih) {
+              islemTarihi = islem.tarih.seconds ? new Date(islem.tarih.seconds * 1000) : new Date(islem.tarih);
+          }
 
           // 1. ESKİ CARİ VE BANKA BAKİYESİNİ GERİ AL
           let isOldSistem = eskiCariId.startsWith('SISTEM_') || eskiCariId === 'MUHTELIF_SATICI' || eskiCariId === 'VERGI_DAIRESI';
@@ -2075,7 +2083,10 @@ window.islemDuzenleAc = function(id) {
       let bitTarih = reRender && document.getElementById('ex_banka_bit') ? document.getElementById('ex_banka_bit').value : '';
 
       let tamHareketler = islemListesi.filter(i => i.bankaId === bankaId).map(i => {
-          let dStr = i.tarih ? new Date(i.tarih.seconds * 1000).toISOString().split('T')[0] : '';
+          let dStr = '';
+          if(i.tarih) {
+              dStr = i.tarih.seconds ? new Date(i.tarih.seconds * 1000).toISOString().split('T')[0] : new Date(i.tarih).toISOString().split('T')[0];
+          }
           return { ...i, tarihStr: dStr, hamTarih: new Date(dStr).getTime() };
       });
       tamHareketler.sort((a,b) => a.hamTarih - b.hamTarih); 
@@ -2142,7 +2153,10 @@ window.islemDuzenleAc = function(id) {
               if(sadeceEslesmeyenler && h.cariId !== 'SISTEM_ESLESMEYEN') return;
 
               filtrelenenKayitSayisi++;
-              let d = h.tarih ? new Date(h.tarih.seconds * 1000).toLocaleDateString('tr-TR') : '-';
+              let d = '-';
+              if (h.tarih) {
+                  d = h.tarih.seconds ? new Date(h.tarih.seconds * 1000).toLocaleDateString('tr-TR') : new Date(h.tarih).toLocaleDateString('tr-TR');
+              }
               
               let cariAdi = h.cariId;
               if(h.cariId === "VERGI_DAIRESI") cariAdi = "Vergi / Yasal Kurum";
@@ -3757,24 +3771,26 @@ window.islemDuzenleAc = function(id) {
           }
 
           if(!op.tahsilEdildi) {
-              riskTL += komisyonTL; 
-              if(op.paraBirimi === 'USD') riskUSD += komisyonDoviz;
-              else if(op.paraBirimi === 'EUR') riskEUR += komisyonDoviz;
-              
-              bekleyenTahsilatListesi.push({
-                  nakliyeci: nakliyeci,
-                  musteri: musteri,
-                  tutar: komisyonDoviz, 
-                  birim: sembol
-              });
-              
-              if(!firmaBorcStats[nakliyeciKey]) firmaBorcStats[nakliyeciKey] = { isim: nakliyeci, dosyaSayisi: 0, tutar: 0, sembol: sembol };
-              firmaBorcStats[nakliyeciKey].dosyaSayisi += 1;
-              firmaBorcStats[nakliyeciKey].tutar += komisyonDoviz; 
-          }
-
-          if (!op.cpaFaturaNo || op.cpaFaturaNo.trim() === '') {
-              faturaBekleyenHtml += `<tr><td class="text-truncate fw-bold" style="max-width:120px;">${op.firma}</td><td>${op.sevkTarihi ? op.sevkTarihi.split('-').reverse().join('.') : '-'}</td><td class="text-end fw-bold text-success">${komisyonDoviz.toLocaleString('tr-TR',{minimumFractionDigits:2})} ${sembol}</td></tr>`;
+              // Eğer fatura kesilmemişse SADECE fatura bekleyenler listesine ekle
+              if (!op.cpaFaturaNo || op.cpaFaturaNo.trim() === '') {
+                  faturaBekleyenHtml += `<tr><td class="text-truncate fw-bold" style="max-width:120px;">${op.firma}</td><td>${op.sevkTarihi ? op.sevkTarihi.split('-').reverse().join('.') : '-'}</td><td class="text-end fw-bold text-success">${komisyonDoviz.toLocaleString('tr-TR',{minimumFractionDigits:2})} ${sembol}</td></tr>`;
+              } else {
+                  // Fatura kesilmiş ve tahsil edilmemişse risk ve tahsilat listesine ekle
+                  riskTL += komisyonTL; 
+                  if(op.paraBirimi === 'USD') riskUSD += komisyonDoviz;
+                  else if(op.paraBirimi === 'EUR') riskEUR += komisyonDoviz;
+                  
+                  bekleyenTahsilatListesi.push({
+                      nakliyeci: nakliyeci,
+                      musteri: musteri,
+                      tutar: komisyonDoviz, 
+                      birim: sembol
+                  });
+                  
+                  if(!firmaBorcStats[nakliyeciKey]) firmaBorcStats[nakliyeciKey] = { isim: nakliyeci, dosyaSayisi: 0, tutar: 0, sembol: sembol };
+                  firmaBorcStats[nakliyeciKey].dosyaSayisi += 1;
+                  firmaBorcStats[nakliyeciKey].tutar += komisyonDoviz; 
+              }
           }
 
           let fBul = faturaListesi.find(f => f.faturaNo === op.cpaFaturaNo);
