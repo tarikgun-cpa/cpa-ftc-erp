@@ -1825,7 +1825,10 @@
                   let bankaAdi = b ? b.hesapAdi : 'Silinmiş Banka';
                   let d = '-';
                   if (i.tarih) {
-                      d = i.tarih.seconds ? new Date(i.tarih.seconds * 1000).toLocaleDateString('tr-TR') : new Date(i.tarih).toLocaleDateString('tr-TR');
+                      let dateObj = i.tarih.seconds ? new Date(i.tarih.seconds * 1000) : new Date(i.tarih);
+                      if (!isNaN(dateObj)) {
+                          d = dateObj.toLocaleDateString('tr-TR');
+                      }
                   }
                   let renk = i.tur === 'Tahsilat' ? 'text-success' : 'text-danger';
                   let isaret = i.tur === 'Tahsilat' ? '+' : '-';
@@ -1998,13 +2001,17 @@ window.islemDuzenleAc = function(id) {
           const islem = islemListesi.find(i => i.id === islemId);
           let islemHamTarih = islem.tarih ? (islem.tarih.seconds ? (islem.tarih.seconds * 1000) : new Date(islem.tarih).getTime()) : 0;
           
-          let islemTarihi = new Date();
+          let islemTarihi;
           if (yeniTarihVal) {
-              islemTarihi = new Date(yeniTarihVal);
+              // Eğer formdan yeni bir tarih girildiyse, o tarihi yyyy-aa-gg formatında string olarak sakla (Veya Date objesine çevir)
+              // Firebase bazen new Date() fonksiyonunu standart objeye çevirmekte zorlanır. Bu yüzden string veya Timestamp kullanmak en güvenlisidir.
+              // Biz burada ISO String formatına zorluyoruz.
+              islemTarihi = yeniTarihVal + 'T12:00:00Z'; 
           } else if (islem.tarih) {
-              islemTarihi = islem.tarih.seconds ? new Date(islem.tarih.seconds * 1000) : new Date(islem.tarih);
+              islemTarihi = islem.tarih.seconds ? new Date(islem.tarih.seconds * 1000).toISOString() : new Date(islem.tarih).toISOString();
+          } else {
+              islemTarihi = new Date().toISOString();
           }
-
           // 1. ESKİ CARİ VE BANKA BAKİYESİNİ GERİ AL
           let isOldSistem = eskiCariId.startsWith('SISTEM_') || eskiCariId === 'MUHTELIF_SATICI' || eskiCariId === 'VERGI_DAIRESI';
           if(eskiCariId.startsWith('BANKA_')) {
@@ -2085,7 +2092,13 @@ window.islemDuzenleAc = function(id) {
       let tamHareketler = islemListesi.filter(i => i.bankaId === bankaId).map(i => {
           let dStr = '';
           if(i.tarih) {
-              dStr = i.tarih.seconds ? new Date(i.tarih.seconds * 1000).toISOString().split('T')[0] : new Date(i.tarih).toISOString().split('T')[0];
+              // Firebase Timestamp objesi veya doğrudan string/Date objesi olabilir
+              let dateObj = i.tarih.seconds ? new Date(i.tarih.seconds * 1000) : new Date(i.tarih);
+              
+              // Tarihin geçerli olup olmadığını kontrol et (Invalid Date hatasını önlemek için)
+              if (!isNaN(dateObj)) {
+                  dStr = dateObj.toISOString().split('T')[0];
+              }
           }
           return { ...i, tarihStr: dStr, hamTarih: new Date(dStr).getTime() };
       });
@@ -2155,7 +2168,10 @@ window.islemDuzenleAc = function(id) {
               filtrelenenKayitSayisi++;
               let d = '-';
               if (h.tarih) {
-                  d = h.tarih.seconds ? new Date(h.tarih.seconds * 1000).toLocaleDateString('tr-TR') : new Date(h.tarih).toLocaleDateString('tr-TR');
+                  let dateObj = h.tarih.seconds ? new Date(h.tarih.seconds * 1000) : new Date(h.tarih);
+                  if (!isNaN(dateObj)) {
+                      d = dateObj.toLocaleDateString('tr-TR');
+                  }
               }
               
               let cariAdi = h.cariId;
@@ -3771,11 +3787,11 @@ window.islemDuzenleAc = function(id) {
           }
 
           if(!op.tahsilEdildi) {
-              // Eğer fatura kesilmemişse SADECE fatura bekleyenler listesine ekle
+              // Eğer fatura kesilmemişse SADECE "Fatura Kesilmeyi Bekleyenler" listesine ekle
               if (!op.cpaFaturaNo || op.cpaFaturaNo.trim() === '') {
                   faturaBekleyenHtml += `<tr><td class="text-truncate fw-bold" style="max-width:120px;">${op.firma}</td><td>${op.sevkTarihi ? op.sevkTarihi.split('-').reverse().join('.') : '-'}</td><td class="text-end fw-bold text-success">${komisyonDoviz.toLocaleString('tr-TR',{minimumFractionDigits:2})} ${sembol}</td></tr>`;
               } else {
-                  // Fatura kesilmiş ve tahsil edilmemişse risk ve tahsilat listesine ekle
+                  // Fatura KESİLMİŞ ama TAHSİL EDİLMEMİŞSE (Risk, Bekleyen Tahsilat ve Borç Listelerine Ekle)
                   riskTL += komisyonTL; 
                   if(op.paraBirimi === 'USD') riskUSD += komisyonDoviz;
                   else if(op.paraBirimi === 'EUR') riskEUR += komisyonDoviz;
@@ -3793,7 +3809,10 @@ window.islemDuzenleAc = function(id) {
               }
           }
 
-          let fBul = faturaListesi.find(f => f.faturaNo === op.cpaFaturaNo);
+          let fBul = null;
+          if (op.cpaFaturaNo && op.cpaFaturaNo.trim() !== '') {
+              fBul = faturaListesi.find(f => f.faturaNo === op.cpaFaturaNo);
+          }
           let cpaLinkHtml = fBul ? `<a href="#" onclick="sayfaYukle('faturalar'); setTimeout(() => faturaDuzenleAc('${fBul.id}'), 300); return false;" class="text-primary fw-bold text-decoration-underline">${op.cpaFaturaNo}</a>` : `<span class="text-dark">${op.cpaFaturaNo || '-'}</span>`;
           let ikon = op.tasimaTuru === 'Denizyolu' ? '<i class="fas fa-ship text-primary" title="Deniz"></i>' : (op.tasimaTuru === 'Havayolu' ? '<i class="fas fa-plane text-info" title="Hava"></i>' : '<i class="fas fa-truck text-secondary" title="Kara"></i>');
           let tasimaOzet = op.tasimaTuru === 'Denizyolu' ? (op.bookingNo || op.konteynerNo || op.gemiAdi || '-') : (op.tasimaTuru === 'Havayolu' ? (op.ucusNo || '-') : ((op.yukNo || '') + ' ' + (op.seferNo || '')));
