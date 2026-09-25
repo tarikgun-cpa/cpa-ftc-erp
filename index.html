@@ -410,6 +410,7 @@
     // Cari Rozetler (Top 5 ve Toplam Hesaplama)
     let alacaklar = []; let borclar = []; let ortaklar = [];
     let toplamAlacakTry = 0; let toplamBorcTry = 0; let ortakToplamTry = 0;
+    let toplamMusteriAlacakTry = 0; let toplamTedarikciAvansTry = 0;
 
     cariListesi.forEach(c => {
         let bakiye = c.bakiye || 0;
@@ -425,6 +426,8 @@
             if(bakiye > 0) {
                 alacaklar.push({ unvan: c.unvan, bakiye: bakiye, sembol: sembol, bakiyeTry: bakiyeTry, grup: c.grup });
                 toplamAlacakTry += bakiyeTry;
+                if(c.grup === 'Satici') { toplamTedarikciAvansTry += bakiyeTry; } 
+                else { toplamMusteriAlacakTry += bakiyeTry; }
             } else if(bakiye < 0) {
                 borclar.push({ unvan: c.unvan, bakiye: Math.abs(bakiye), sembol: sembol, bakiyeTry: bakiyeTry });
                 toplamBorcTry += bakiyeTry;
@@ -432,23 +435,40 @@
         }
     });
 
-    alacaklar.sort((a,b) => b.bakiyeTry - a.bakiyeTry);
     borclar.sort((a,b) => b.bakiyeTry - a.bakiyeTry);
     ortaklar.sort((a,b) => b.bakiyeTry - a.bakiyeTry);
 
-    // Kompakt Liste Yapısı
-    let alacakHtml = `<div class="mb-1 pb-1 border-bottom border-light"><small class="text-muted d-block" style="font-size:0.65rem;">Toplam Tahmini Alacak</small><h6 class="fw-bold text-success mb-0">${toplamAlacakTry.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</h6></div>`;
+    // Alacaklar ve Avansları iki ayrı listeye ayır ve sırala
+    let musteriAlacakListesi = alacaklar.filter(c => c.grup !== 'Satici').sort((a,b) => b.bakiyeTry - a.bakiyeTry);
+    let tedarikciAvansListesi = alacaklar.filter(c => c.grup === 'Satici').sort((a,b) => b.bakiyeTry - a.bakiyeTry);
+
+    let alacakHtml = `
+        <div class="mb-1 pb-1 border-bottom border-light">
+            <small class="text-muted d-block" style="font-size:0.65rem;">Genel Toplam Bakiye (Alacak + Avans)</small>
+            <h6 class="fw-bold text-success mb-0">${toplamAlacakTry.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</h6>
+        </div>`;
+
+    if (musteriAlacakListesi.length > 0) {
+        alacakHtml += `<div class="d-flex justify-content-between align-items-center mt-1 mb-1"><span class="badge bg-success" style="font-size:0.55rem;">ALACAK (Müşteri)</span><strong class="text-success" style="font-size:0.65rem;">${toplamMusteriAlacakTry.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</strong></div>`;
+        musteriAlacakListesi.slice(0, 3).forEach(c => {
+            alacakHtml += `<div class="d-flex justify-content-between align-items-center pb-1 mb-1 border-bottom border-light">
+                <div class="text-truncate text-secondary d-flex align-items-center" style="font-size: 0.75rem; max-width: 150px;" title="${c.unvan}"><span class="text-truncate">${c.unvan}</span></div>
+                <strong class="text-dark" style="font-size: 0.8rem;">${c.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2})} <span class="text-muted fw-normal">${c.sembol}</span></strong></div>`;
+        });
+    }
+
+    if (tedarikciAvansListesi.length > 0) {
+        alacakHtml += `<div class="d-flex justify-content-between align-items-center mt-2 mb-1"><span class="badge bg-info text-dark" style="font-size:0.55rem;">AVANS (Tedarikçi)</span><strong class="text-info text-dark" style="font-size:0.65rem;">${toplamTedarikciAvansTry.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</strong></div>`;
+        tedarikciAvansListesi.slice(0, 3).forEach(c => {
+            alacakHtml += `<div class="d-flex justify-content-between align-items-center pb-1 mb-1 border-bottom border-light">
+                <div class="text-truncate text-secondary d-flex align-items-center" style="font-size: 0.75rem; max-width: 150px;" title="${c.unvan}"><span class="text-truncate">${c.unvan}</span></div>
+                <strong class="text-dark" style="font-size: 0.8rem;">${c.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2})} <span class="text-muted fw-normal">${c.sembol}</span></strong></div>`;
+        });
+    }
+
     let borcHtml = `<div class="mb-1 pb-1 border-bottom border-light"><small class="text-muted d-block" style="font-size:0.65rem;">Toplam Tahmini Borç</small><h6 class="fw-bold text-danger mb-0">${toplamBorcTry.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</h6></div>`;
     let ortakHtml = `<div class="mb-1 pb-1 border-bottom border-light"><small class="text-muted d-block" style="font-size:0.65rem;">Ortaklar Net Durum</small><h6 class="fw-bold ${ortakToplamTry >= 0 ? 'text-success' : 'text-danger'} mb-0">${Math.abs(ortakToplamTry).toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</h6></div>`;
 
-    alacaklar.slice(0, 5).forEach(c => {
-        let etiket = c.grup === 'Satici' ? '<span class="badge bg-info text-dark me-1" style="font-size:0.55rem; padding: 2px 4px;">Avans</span>' : '<span class="badge bg-success me-1" style="font-size:0.55rem; padding: 2px 4px;">Alacak</span>';
-        alacakHtml += `<div class="d-flex justify-content-between align-items-center pb-1 mb-1 border-bottom border-light">
-            <div class="text-truncate text-secondary d-flex align-items-center" style="font-size: 0.75rem; max-width: 150px;" title="${c.unvan}">
-                ${etiket}<span class="text-truncate">${c.unvan}</span>
-            </div>
-            <strong class="text-dark" style="font-size: 0.8rem;">${c.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2})} <span class="text-muted fw-normal">${c.sembol}</span></strong></div>`;
-    });
     borclar.slice(0, 5).forEach(c => {
         borcHtml += `<div class="d-flex justify-content-between align-items-center pb-1 mb-1 border-bottom border-light">
             <span class="text-truncate text-secondary" style="font-size: 0.75rem; max-width: 140px;" title="${c.unvan}">${c.unvan}</span>
