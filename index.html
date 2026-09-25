@@ -1040,7 +1040,7 @@
             silButon = `
                 <button class="btn btn-sm btn-outline-secondary py-0 me-1" onclick="makbuzYazdir('${h.id}', '${cariId}', '${h.bankaId}', '${h.orijinalTur}', ${h.mutlakTutar}, '${h.tarih}', '${encodeURIComponent(h.aciklama)}', 'ENG')" title="İngilizce Makbuz"><i class="fas fa-file-invoice-dollar"></i> EN</button>
                 <button class="btn btn-sm btn-outline-secondary py-0 me-1" onclick="makbuzYazdir('${h.id}', '${cariId}', '${h.bankaId}', '${h.orijinalTur}', ${h.mutlakTutar}, '${h.tarih}', '${encodeURIComponent(h.aciklama)}', 'TR')" title="Türkçe Makbuz"><i class="fas fa-file-invoice-dollar"></i> TR</button>
-                <button class="btn btn-sm btn-outline-danger py-0" onclick="islemSil('${h.id}', '${cariId}', '${h.bankaId}', '${h.orijinalTur}', ${h.mutlakTutar})" title="İşlemi sil"><i class="fas fa-trash"></i></button>
+                <button class="btn btn-sm btn-outline-danger py-0" onclick="window.islemSil('${h.id}', '${cariId}', '${h.bankaId}', '${h.orijinalTur}', ${h.mutlakTutar})" title="İşlemi sil"><i class="fas fa-trash"></i></button>
             `;
         } else {
             silButon = `<span class="badge bg-light text-muted fw-normal">Faturadan silin</span>`;
@@ -2027,7 +2027,7 @@
               
               let aksiyonButonlari = `
                   <button class="btn btn-sm btn-outline-primary py-0 me-1" onclick="islemDuzenleAc('${h.id}')" title="İşlemi Değiştir / Eşleştir"><i class="fas fa-edit"></i> Değiştir</button>
-                  <button class="btn btn-sm btn-outline-danger py-0" onclick="islemSil('${h.id}', '${h.cariId}', '${h.bankaId}', '${h.tur}', ${h.tutar})" title="İşlemi İptal Et"><i class="fas fa-trash"></i></button>
+                  <button class="btn btn-sm btn-outline-danger py-0" onclick="window.islemSil('${h.id}', '${h.cariId}', '${h.bankaId}', '${h.tur}', ${h.tutar})" title="İşlemi İptal Et"><i class="fas fa-trash"></i></button>
               `;
               
               let rowColor = gercekYon === 'Tahsilat' ? 'text-success' : 'text-danger';
@@ -2254,6 +2254,51 @@
   window.bankaSil = async function(id) {
       if(!confirm("Bu banka hesabını silmek istediğinize emin misiniz?")) return;
       try { await deleteDoc(doc(db, "bankalar", id)); } catch(e) { alert("Hata: " + e.message); }
+  };
+
+  window.islemSil = async function(islemId, cariId, bankaId, tur, mutlakTutar) {
+      if(!confirm("Bu işlemi silmek istediğinize emin misiniz? Banka bakiyesi otomatik olarak geri alınacaktır.")) return;
+      try {
+          const islem = islemListesi.find(i => i.id === islemId);
+          if(!islem) return;
+          
+          let gercekYon = islem.yon ? islem.yon : (['Tahsilat', 'Faiz_Gelir'].includes(islem.tur) ? 'Tahsilat' : 'Odeme');
+          let tutar = Math.abs(mutlakTutar);
+
+          // 1. Banka Bakiyesini Geri Al
+          let bankaBakiyeDegisimi = gercekYon === 'Tahsilat' ? -tutar : tutar;
+          await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(bankaBakiyeDegisimi) });
+
+          // 2. Cari Bakiyesini Geri Al (Sistemsel olmayan cariler için)
+          let isSistemCard = cariId.startsWith('SISTEM_') || cariId === 'MUHTELIF_SATICI' || cariId === 'VERGI_DAIRESI';
+          if(!isSistemCard) {
+              let cariBakiyeDegisimi = gercekYon === 'Tahsilat' ? tutar : -tutar;
+              await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(cariBakiyeDegisimi) });
+          }
+
+          // 3. Virman İse Karşı İşlemi De Sil
+          if(cariId === 'SISTEM_VIRMAN') {
+              let islemHamTarih = islem.tarih ? (islem.tarih.seconds ? (islem.tarih.seconds * 1000) : new Date(islem.tarih).getTime()) : 0;
+              let karsiIslem = islemListesi.find(i => i.cariId === 'SISTEM_VIRMAN' && i.id !== islemId && Math.abs((i.tarih ? (i.tarih.seconds ? (i.tarih.seconds * 1000) : new Date(i.tarih).getTime()) : 0) - islemHamTarih) < 2000);
+              
+              if(karsiIslem) {
+                  let karsiEskiTutar = Math.abs(parseFloat(karsiIslem.tutar));
+                  let karsiIadeYon = karsiIslem.yon === 'Tahsilat' ? -karsiEskiTutar : karsiEskiTutar;
+                  await updateDoc(doc(db, "bankalar", karsiIslem.bankaId), { bakiye: increment(karsiIadeYon) });
+                  await deleteDoc(doc(db, "hesapHareketleri", karsiIslem.id));
+              }
+          }
+
+          // 4. Ana İşlemi Sil
+          await deleteDoc(doc(db, "hesapHareketleri", islemId));
+          
+          setTimeout(() => { 
+              if(document.getElementById('banka_ekstre_alan') && !document.getElementById('banka_ekstre_alan').classList.contains('d-none')) {
+                  window.bankaEkstreAc(bankaId, true); 
+              } else { window.bankalariCiz(); }
+          }, 300);
+
+      } catch(e) { alert("Hata: " + e.message); }
   };
 
   
