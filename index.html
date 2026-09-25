@@ -449,20 +449,28 @@
         </div>`;
 
     if (musteriAlacakListesi.length > 0) {
-        alacakHtml += `<div class="d-flex justify-content-between align-items-center mt-1 mb-1"><span class="badge bg-success" style="font-size:0.55rem;">ALACAK (Müşteri)</span><strong class="text-success" style="font-size:0.65rem;">${toplamMusteriAlacakTry.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</strong></div>`;
+        alacakHtml += `
+            <div class="d-flex justify-content-between align-items-center mt-2 mb-2 pt-1">
+                <span class="badge bg-success shadow-sm px-2 py-1" style="font-size:0.68rem; font-weight: 600;"><i class="fas fa-arrow-down me-1"></i>ALACAK (Müşteri)</span>
+                <strong class="text-success fw-bold" style="font-size:0.82rem;">${toplamMusteriAlacakTry.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ₺</strong>
+            </div>`;
         musteriAlacakListesi.slice(0, 3).forEach(c => {
             alacakHtml += `<div class="d-flex justify-content-between align-items-center pb-1 mb-1 border-bottom border-light">
-                <div class="text-truncate text-secondary d-flex align-items-center" style="font-size: 0.75rem; max-width: 150px;" title="${c.unvan}"><span class="text-truncate">${c.unvan}</span></div>
-                <strong class="text-dark" style="font-size: 0.8rem;">${c.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2})} <span class="text-muted fw-normal">${c.sembol}</span></strong></div>`;
+                <div class="text-truncate text-secondary d-flex align-items-center" style="font-size: 0.78rem; max-width: 155px;" title="${c.unvan}"><span class="text-truncate">${c.unvan}</span></div>
+                <strong class="text-dark" style="font-size: 0.82rem;">${c.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} <span class="text-muted fw-normal">${c.sembol}</span></strong></div>`;
         });
     }
 
     if (tedarikciAvansListesi.length > 0) {
-        alacakHtml += `<div class="d-flex justify-content-between align-items-center mt-2 mb-1"><span class="badge bg-info text-dark" style="font-size:0.55rem;">AVANS (Tedarikçi)</span><strong class="text-info text-dark" style="font-size:0.65rem;">${toplamTedarikciAvansTry.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</strong></div>`;
+        alacakHtml += `
+            <div class="d-flex justify-content-between align-items-center mt-2 mb-2 pt-2 border-top border-light">
+                <span class="badge bg-info text-dark shadow-sm px-2 py-1" style="font-size:0.68rem; font-weight: 600;"><i class="fas fa-hand-holding-usd me-1"></i>AVANS (Tedarikçi)</span>
+                <strong class="text-info text-dark fw-bold" style="font-size:0.82rem;">${toplamTedarikciAvansTry.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ₺</strong>
+            </div>`;
         tedarikciAvansListesi.slice(0, 3).forEach(c => {
             alacakHtml += `<div class="d-flex justify-content-between align-items-center pb-1 mb-1 border-bottom border-light">
-                <div class="text-truncate text-secondary d-flex align-items-center" style="font-size: 0.75rem; max-width: 150px;" title="${c.unvan}"><span class="text-truncate">${c.unvan}</span></div>
-                <strong class="text-dark" style="font-size: 0.8rem;">${c.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2})} <span class="text-muted fw-normal">${c.sembol}</span></strong></div>`;
+                <div class="text-truncate text-secondary d-flex align-items-center" style="font-size: 0.78rem; max-width: 155px;" title="${c.unvan}"><span class="text-truncate">${c.unvan}</span></div>
+                <strong class="text-dark" style="font-size: 0.82rem;">${c.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} <span class="text-muted fw-normal">${c.sembol}</span></strong></div>`;
         });
     }
 
@@ -480,11 +488,6 @@
             <span class="text-truncate text-secondary" style="font-size: 0.75rem; max-width: 140px;" title="${c.unvan}">${c.unvan}</span>
             <strong class="${renk}" style="font-size: 0.8rem;">${Math.abs(c.bakiye).toLocaleString('tr-TR', {minimumFractionDigits: 2})} <span class="text-muted fw-normal">${c.sembol}</span></strong></div>`;
     });
-
-    document.getElementById('dash_kasa_listesi').innerHTML = bankalarHtml || '<span class="text-muted small">Kayıtlı veri yok.</span>';
-    document.getElementById('dash_alacak_rozetler').innerHTML = alacaklar.length > 0 ? alacakHtml : '<span class="text-muted small">Alacak bulunmuyor.</span>';
-    document.getElementById('dash_borc_rozetler').innerHTML = borclar.length > 0 ? borcHtml : '<span class="text-muted small">Borç bulunmuyor.</span>';
-    if(document.getElementById('dash_ortak_rozetler')) document.getElementById('dash_ortak_rozetler').innerHTML = ortaklar.length > 0 ? ortakHtml : '<span class="text-muted small">Ortak bulunmuyor.</span>';
 
     document.getElementById('dash_kasa_listesi').innerHTML = bankalarHtml || '<span class="text-muted small">Kayıtlı veri yok.</span>';
     document.getElementById('dash_alacak_rozetler').innerHTML = alacaklar.length > 0 ? alacakHtml : '<span class="text-muted small">Alacak bulunmuyor.</span>';
@@ -596,11 +599,11 @@
     let temettuHtml = `
         <div class="mb-1">
             <span class="text-muted d-block mb-0" style="font-size:0.65rem;">Net Nakit Puan (Tahmini)</span>
-            <h5 class="mb-0 fw-bold text-success">${cekilebilirNakit.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</h5>
+            <h5 class="mb-0 fw-bold text-success">${cekilebilirNakit.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ₺</h5>
         </div>
         <div class="d-flex justify-content-between border-top pt-1 mt-1" style="font-size:0.7rem;">
-            <span class="text-muted">Brüt Kâr: <strong class="text-dark">${netKar > 0 ? netKar.toLocaleString('tr-TR', {minimumFractionDigits: 2}) : '0,00'} ₺</strong></span>
-            <span class="text-muted">Vergi (%20): <strong class="text-danger">-${temettuVergisi.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</strong></span>
+            <span class="text-muted">Brüt Kâr: <strong class="text-dark">${netKar > 0 ? netKar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '0,00'} ₺</strong></span>
+            <span class="text-muted">Vergi (%20): <strong class="text-danger">-${temettuVergisi.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ₺</strong></span>
         </div>
     `;
     if(document.getElementById('dash_temettu_alani')) document.getElementById('dash_temettu_alani').innerHTML = temettuHtml;
