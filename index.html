@@ -2471,7 +2471,9 @@
               const bakiyeDegisimi = anaYon === 'Tahsilat' ? tutar : -tutar;
               await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(bakiyeDegisimi) });
 
-              if (cariId !== "SISTEM_DEVIR" && cariId !== "VERGI_DAIRESI" && cariId !== "MUHTELIF_SATICI") {
+              // Sistem carisi değilse bakiyeyi güncelle (HATA ÇÖZÜMÜ)
+              let isSistemCard = cariId.startsWith('SISTEM_') || cariId === 'MUHTELIF_SATICI' || cariId === 'VERGI_DAIRESI';
+              if (!isSistemCard) {
                   const cariBakiyeDegisimi = anaYon === 'Tahsilat' ? -tutar : tutar;
                   await updateDoc(doc(db, "cariler", cariId), { bakiye: increment(cariBakiyeDegisimi) });
               }
@@ -2924,8 +2926,9 @@
                   });
 
                   // Cari Bakiyesini Güncelle
-                  let isSistemCard = secimId.startsWith('SISTEM_') || secimId === 'MUHTELIF_SATICI';
-                  if(!isSistemCard && (islemTuru === 'Tahsilat' || islemTuru === 'Odeme' || islemTuru === 'Ortak_Borc_Alacak')) {
+                  let isSistemCard = secimId.startsWith('SISTEM_') || secimId === 'MUHTELIF_SATICI' || secimId === 'VERGI_DAIRESI';
+                  // 'islemTuru' kontrolünü kaldırıyoruz çünkü cari bakiyesini değiştiren her işlemde (eğer gerçek bir cari ise) bu çalışmalı.
+                  if(!isSistemCard) {
                       const cariBakiyeDegisimi = gercekYon === 'Tahsilat' ? -h.tutar : h.tutar;
                       await updateDoc(doc(db, "cariler", secimId), { bakiye: increment(cariBakiyeDegisimi) });
                   }
