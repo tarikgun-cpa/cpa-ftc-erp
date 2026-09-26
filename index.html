@@ -1012,6 +1012,10 @@
             <div class="col-4 text-end">
                 <h6 class="mb-1 text-muted small">Güncel Kapanış Bakiyesi</h6>
                 <h3 class="${cari.bakiye >= 0 ? 'text-success' : 'text-danger'} fw-bold mb-0">${Math.abs(cari.bakiye).toLocaleString('tr-TR', {minimumFractionDigits: 2})} ${birim}</h3>
+                <div class="mt-2 d-print-none">
+                    <button class="btn btn-sm btn-secondary shadow-sm" onclick="window.print()"><i class="fas fa-print"></i> Yazdır</button>
+                    <button class="btn btn-sm btn-outline-danger ms-1" onclick="sayfaYukle('cariler')">Kapat</button>
+                </div>
             </div>
         </div>
         
@@ -1057,7 +1061,6 @@
     if(gosterilenKayit === 0) { html += `<tr><td colspan="7" class="text-center text-muted py-3">Bu tarih aralığında hareket bulunamadı.</td></tr>`; } 
     html += `<tr class="border-top border-dark border-2" style="background-color: #f4f6f9;"><td colspan="3" class="text-end fw-bold small text-muted">DÖNEM TOPLAMI:</td><td class="text-end fw-bold text-dark">${toplamBorc.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ${birim}</td><td class="text-end fw-bold text-dark">${toplamAlacak.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ${birim}</td><td></td><td class="d-print-none"></td></tr>`;
     html += `</tbody></table></div></div>`;
-    html += `<div class="mt-3"><button class="btn btn-secondary shadow-sm" onclick="window.print()"><i class="fas fa-print"></i> Yazdır</button> <button class="btn btn-outline-danger ms-2" onclick="sayfaYukle('cariler')">Kapat</button></div>`;
     document.getElementById('main-content').innerHTML = html;
   };
 
@@ -1973,7 +1976,14 @@
                       ${banka.tur === 'Banka' ? '<br><small class="text-muted d-block mt-1" style="font-size:11px;"><strong>IBAN:</strong> ' + (banka.iban || '-') + ' | <strong>Yerel Hesap:</strong> ' + (banka.yerelHesap || '-') + '</small>' : ''}
                   </div>
               </div>
-              <div class="text-end"><h6 class="mb-0 text-muted small">Güncel Kapanış Bakiyesi</h6><h4 class="${banka.bakiye >= 0 ? 'text-success' : 'text-danger'} fw-bold mb-0">${banka.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${birim}</h4></div>
+              <div class="text-end">
+                  <h6 class="mb-0 text-muted small">Güncel Kapanış Bakiyesi</h6>
+                  <h4 class="${banka.bakiye >= 0 ? 'text-success' : 'text-danger'} fw-bold mb-0">${banka.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}${birim}</h4>
+                  <div class="mt-2 d-print-none">
+                      <button class="btn btn-sm btn-secondary shadow-sm" onclick="window.print()"><i class="fas fa-print"></i> Yazdır</button>
+                      <button class="btn btn-sm btn-outline-danger ms-1" onclick="document.getElementById('banka_ekstre_alan').classList.add('d-none'); document.getElementById('banka_ana_alan').classList.remove('d-none'); window.bankalariCiz();">Kapat</button>
+                  </div>
+              </div>
           </div>
           
           <div class="row mb-3 d-print-none bg-light p-2 rounded mx-0">
@@ -2046,7 +2056,6 @@
       }
 
       html += `</tbody></table></div></div>`;
-      html += `<div class="mt-3"><button class="btn btn-secondary shadow-sm" onclick="window.print()"><i class="fas fa-print"></i> Yazdır</button> <button class="btn btn-outline-danger ms-2" onclick="document.getElementById('banka_ekstre_alan').classList.add('d-none'); document.getElementById('banka_ana_alan').classList.remove('d-none'); window.bankalariCiz();">Kapat</button></div>`;
       
       let anaAlan = document.getElementById('banka_ana_alan');
       if (!anaAlan) {
@@ -2386,11 +2395,24 @@
           select.innerHTML = '<option value="">-- Cari Seçiniz --</option>';
           select.innerHTML += '<option value="SISTEM_DEVIR" class="fw-bold text-primary">-- AÇILIŞ BAKİYESİ (DEVİR) --</option>';
           select.innerHTML += '<option value="MUHTELIF_SATICI" class="fw-bold text-primary">-- CARİSİZ İŞLEM (MASRAF/FİŞ) --</option>';
+          select.innerHTML += '<option value="SISTEM_VERGI" class="fw-bold text-danger">-- Vergi / SGK Ödemesi --</option>';
+          select.innerHTML += '<option value="SISTEM_MAAS" class="fw-bold text-danger">-- Personel Maaşı --</option>';
+          select.innerHTML += '<option value="SISTEM_BANKA" class="fw-bold text-danger">-- Banka Masrafı / Komisyon --</option>';
+          select.innerHTML += '<option value="SISTEM_FAIZ" class="fw-bold text-success">-- Faiz Geliri --</option>';
+          select.innerHTML += '<option value="SISTEM_DOVIZ" class="fw-bold text-info">-- Döviz Alım / Satım (Kayıp/Kazanç) --</option>';
+          select.innerHTML += '<optgroup label="Kayıtlı Cari Hesaplar">';
           cariListesi.forEach(c => { 
               let paraBrm = c.paraBirimi === 'USD' ? '$' : (c.paraBirimi === 'EUR' ? '€' : '₺');
               select.innerHTML += `<option value="${c.id}">${c.unvan} (Bakiye: ${c.bakiye} ${paraBrm})</option>`; 
           });
+          select.innerHTML += '</optgroup>';
       }
+
+      // Seçilen işlem türüne göre CARİSİZ ve SİSTEMSEL işlemleri otomatik seçtir
+      if (tur === 'Vergi_SGK') select.value = 'SISTEM_VERGI';
+      else if (tur === 'Maas') select.value = 'SISTEM_MAAS';
+      else if (tur === 'Banka_Gider') select.value = 'SISTEM_BANKA';
+      else if (tur === 'Faiz_Gelir') select.value = 'SISTEM_FAIZ';
   };
 
   window.islemModalAc = function(tur, bankaId) {
@@ -2883,12 +2905,13 @@
                   
                   let bankaFarki = gercekYon === 'Tahsilat' ? h.tutar : -h.tutar;
                   let karsiFark = gercekYon === 'Tahsilat' ? -h.tutar : h.tutar;
+                  let virmanGrupId = "VG_EXC_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5);
                   
                   await addDoc(collection(db, "hesapHareketleri"), {
-                      bankaId: h.bankaId, cariId: 'SISTEM_VIRMAN', tur: islemTuru, yon: gercekYon, tutar: h.tutar, aciklama: h.aciklama + ' (İşlem Yapan)', tarih: new Date(h.tarih)
+                      bankaId: h.bankaId, cariId: 'SISTEM_VIRMAN', virmanGroup: virmanGrupId, tur: islemTuru, yon: gercekYon, tutar: h.tutar, aciklama: h.aciklama + ' (İşlem Yapan)', tarih: new Date(h.tarih)
                   });
                   await addDoc(collection(db, "hesapHareketleri"), {
-                      bankaId: karsiBankaId, cariId: 'SISTEM_VIRMAN', tur: islemTuru === 'Tahsilat' ? 'Odeme' : 'Tahsilat', yon: gercekYon === 'Tahsilat' ? 'Odeme' : 'Tahsilat', tutar: h.tutar, aciklama: h.aciklama + ' (Karşı Hesap)', tarih: new Date(h.tarih)
+                      bankaId: karsiBankaId, cariId: 'SISTEM_VIRMAN', virmanGroup: virmanGrupId, tur: islemTuru === 'Tahsilat' ? 'Odeme' : 'Tahsilat', yon: gercekYon === 'Tahsilat' ? 'Odeme' : 'Tahsilat', tutar: h.tutar, aciklama: h.aciklama + ' (Karşı Hesap)', tarih: new Date(h.tarih)
                   });
                   
                   await updateDoc(doc(db, "bankalar", h.bankaId), { bakiye: increment(bankaFarki) });
