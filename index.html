@@ -2100,8 +2100,14 @@
       let karsiTutarDegeri = '';
       let karsiBankaHafiza = '';
       if (islem.cariId === 'SISTEM_VIRMAN') {
-          let islemHamTarih = islem.tarih ? (islem.tarih.seconds ? (islem.tarih.seconds * 1000) : new Date(islem.tarih).getTime()) : 0;
-          let karsiIslem = islemListesi.find(i => i.cariId === 'SISTEM_VIRMAN' && i.id !== id && Math.abs((i.tarih ? (i.tarih.seconds ? (i.tarih.seconds * 1000) : new Date(i.tarih).getTime()) : 0) - islemHamTarih) < 2000);
+          let karsiIslem = null;
+          if (islem.virmanGroup) {
+              karsiIslem = islemListesi.find(i => i.virmanGroup === islem.virmanGroup && i.id !== id);
+          }
+          if (!karsiIslem) {
+              let islemHamTarih = islem.tarih ? (islem.tarih.seconds ? (islem.tarih.seconds * 1000) : new Date(islem.tarih).getTime()) : 0;
+              karsiIslem = islemListesi.find(i => i.cariId === 'SISTEM_VIRMAN' && i.id !== id && Math.abs((i.tarih ? (i.tarih.seconds ? (i.tarih.seconds * 1000) : new Date(i.tarih).getTime()) : 0) - islemHamTarih) < 2000);
+          }
           if (karsiIslem) {
               karsiTutarDegeri = karsiIslem.tutar.toString().replace('.', ',');
               karsiBankaHafiza = 'BANKA_' + karsiIslem.bankaId; 
@@ -2196,7 +2202,13 @@
               let oldIadeFark = eskiYon === 'Tahsilat' ? eskiTutar : -eskiTutar;
               await updateDoc(doc(db, "bankalar", oldBankaId), { bakiye: increment(oldIadeFark) });
           } else if(eskiCariId === 'SISTEM_VIRMAN') {
-              let karsiIslem = islemListesi.find(i => i.cariId === 'SISTEM_VIRMAN' && i.id !== islemId && Math.abs((i.tarih ? (i.tarih.seconds ? (i.tarih.seconds * 1000) : new Date(i.tarih).getTime()) : 0) - islemHamTarih) < 2000);
+              let karsiIslem = null;
+              if (islem.virmanGroup) {
+                  karsiIslem = islemListesi.find(i => i.virmanGroup === islem.virmanGroup && i.id !== islemId);
+              }
+              if (!karsiIslem) {
+                  karsiIslem = islemListesi.find(i => i.cariId === 'SISTEM_VIRMAN' && i.id !== islemId && Math.abs((i.tarih ? (i.tarih.seconds ? (i.tarih.seconds * 1000) : new Date(i.tarih).getTime()) : 0) - islemHamTarih) < 2000);
+              }
               if(karsiIslem) {
                   let karsiEskiTutar = Math.abs(parseFloat(karsiIslem.tutar));
                   let karsiIadeYon = karsiIslem.yon === 'Tahsilat' ? -karsiEskiTutar : karsiEskiTutar;
@@ -2218,14 +2230,15 @@
           if (isNewVirman || yeniTur === 'Doviz_Alim_Satis' || yeniTur === 'Virman') {
               let karsiBankaId = yeniCariId.replace('BANKA_', '');
               let karsiYon = yeniYon === 'Tahsilat' ? 'Odeme' : 'Tahsilat';
+              let virmanGrupId = islem.virmanGroup || ("VG_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5));
               
               await updateDoc(doc(db, "hesapHareketleri", islemId), {
-                  cariId: 'SISTEM_VIRMAN', tur: yeniTur, tutar: yeniTutar, yon: yeniYon, aciklama: islem.aciklama + ' (Eşleştirildi)', tarih: islemTarihi
+                  cariId: 'SISTEM_VIRMAN', virmanGroup: virmanGrupId, tur: yeniTur, tutar: yeniTutar, yon: yeniYon, aciklama: islem.aciklama + ' (Eşleştirildi)', tarih: islemTarihi
               });
               
               if(karsiBankaId && karsiBankaId !== 'SISTEM_VIRMAN') {
                   await addDoc(collection(db, "hesapHareketleri"), {
-                      bankaId: karsiBankaId, cariId: 'SISTEM_VIRMAN', tur: yeniTur, yon: karsiYon, tutar: karsiTutar, aciklama: islem.aciklama + ' (Karşı Hesap)', tarih: islemTarihi
+                      bankaId: karsiBankaId, cariId: 'SISTEM_VIRMAN', virmanGroup: virmanGrupId, tur: yeniTur, yon: karsiYon, tutar: karsiTutar, aciklama: islem.aciklama + ' (Karşı Hesap)', tarih: islemTarihi
                   });
                   let karsiFark = karsiYon === 'Tahsilat' ? karsiTutar : -karsiTutar;
                   await updateDoc(doc(db, "bankalar", karsiBankaId), { bakiye: increment(karsiFark) });
@@ -2281,8 +2294,14 @@
 
           // 3. Virman İse Karşı İşlemi De Sil
           if(cariId === 'SISTEM_VIRMAN') {
-              let islemHamTarih = islem.tarih ? (islem.tarih.seconds ? (islem.tarih.seconds * 1000) : new Date(islem.tarih).getTime()) : 0;
-              let karsiIslem = islemListesi.find(i => i.cariId === 'SISTEM_VIRMAN' && i.id !== islemId && Math.abs((i.tarih ? (i.tarih.seconds ? (i.tarih.seconds * 1000) : new Date(i.tarih).getTime()) : 0) - islemHamTarih) < 2000);
+              let karsiIslem = null;
+              if (islem.virmanGroup) {
+                  karsiIslem = islemListesi.find(i => i.virmanGroup === islem.virmanGroup && i.id !== islemId);
+              }
+              if (!karsiIslem) {
+                  let islemHamTarih = islem.tarih ? (islem.tarih.seconds ? (islem.tarih.seconds * 1000) : new Date(islem.tarih).getTime()) : 0;
+                  karsiIslem = islemListesi.find(i => i.cariId === 'SISTEM_VIRMAN' && i.id !== islemId && Math.abs((i.tarih ? (i.tarih.seconds ? (i.tarih.seconds * 1000) : new Date(i.tarih).getTime()) : 0) - islemHamTarih) < 2000);
+              }
               
               if(karsiIslem) {
                   let karsiEskiTutar = Math.abs(parseFloat(karsiIslem.tutar));
@@ -2353,13 +2372,13 @@
       const label = document.getElementById('i_cari_etiket');
       if(!label) return;
       
-      if(tur === 'Virman' || tur === 'Kredi_Karti_Odeme') {
+      if(tur === 'Virman' || tur === 'Kredi_Karti_Odeme' || tur === 'Doviz_Alim_Satis') {
           label.innerHTML = "Karşı Banka / Kasa / Kart *";
           select.innerHTML = '<option value="">-- Hesap Seçiniz --</option>';
           const aktifBankaId = document.getElementById('i_bankaId').value;
           bankaListesi.forEach(b => { 
               if(b.id !== aktifBankaId) {
-                  select.innerHTML += `<option value="${b.id}">${b.hesapAdi} (${b.paraBirimi})</option>`; 
+                  select.innerHTML += `<option value="BANKA_${b.id}">${b.hesapAdi} (${b.paraBirimi})</option>`; 
               }
           });
       } else {
@@ -2405,19 +2424,21 @@
 
       try {
           if(isVirman) {
+              let karsiBankaId = cariId.replace('BANKA_', '');
               let bankaFarki = anaYon === 'Tahsilat' ? tutar : -tutar;
               let karsiYon = anaYon === 'Tahsilat' ? 'Odeme' : 'Tahsilat';
               let karsiFark = karsiYon === 'Tahsilat' ? karsiTutar : -karsiTutar; 
+              let virmanGrupId = "VG_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5);
               
               await addDoc(collection(db, "hesapHareketleri"), {
-                  bankaId: bankaId, cariId: 'SISTEM_VIRMAN', tur: tur, yon: anaYon, tutar: tutar, aciklama: aciklama + ' (İşlem Yapan)', tarih: new Date(document.getElementById('i_tarih').value)
+                  bankaId: bankaId, cariId: 'SISTEM_VIRMAN', virmanGroup: virmanGrupId, tur: tur, yon: anaYon, tutar: tutar, aciklama: aciklama + ' (İşlem Yapan)', tarih: new Date(document.getElementById('i_tarih').value)
               });
               await addDoc(collection(db, "hesapHareketleri"), {
-                  bankaId: cariId, cariId: 'SISTEM_VIRMAN', tur: tur, yon: karsiYon, tutar: karsiTutar, aciklama: aciklama + ' (Karşı Hesap)', tarih: new Date(document.getElementById('i_tarih').value)
+                  bankaId: karsiBankaId, cariId: 'SISTEM_VIRMAN', virmanGroup: virmanGrupId, tur: tur, yon: karsiYon, tutar: karsiTutar, aciklama: aciklama + ' (Karşı Hesap)', tarih: new Date(document.getElementById('i_tarih').value)
               });
               
               await updateDoc(doc(db, "bankalar", bankaId), { bakiye: increment(bankaFarki) });
-              await updateDoc(doc(db, "bankalar", cariId), { bakiye: increment(karsiFark) });
+              await updateDoc(doc(db, "bankalar", karsiBankaId), { bakiye: increment(karsiFark) });
           } else {
 
               await addDoc(collection(db, "hesapHareketleri"), {
