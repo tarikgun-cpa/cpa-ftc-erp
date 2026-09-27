@@ -1336,8 +1336,11 @@
           let aciklamaT = fatura.aciklama ? `<span class="small text-muted">${fatura.aciklama}</span> ${krt}` : krt;
           
           let vergiGosterim = '';
-          if(fatura.stopajTutar && fatura.stopajTutar > 0) vergiGosterim += `<span class="badge bg-danger">Stp: -${fatura.stopajTutar.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ${sembol}</span> `;
-          if(fatura.tevkifatTutar && fatura.tevkifatTutar > 0) vergiGosterim += `<span class="badge bg-warning text-dark">Tvk: -${fatura.tevkifatTutar.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ${sembol}</span>`;
+          if(fatura.stopajTutar && fatura.stopajTutar > 0) vergiGosterim += `<span class="badge bg-danger shadow-sm py-1 px-2" style="font-size:0.65rem;">Stp: -${fatura.stopajTutar.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ${sembol}</span> `;
+          if(fatura.tevkifatTutar && fatura.tevkifatTutar > 0) vergiGosterim += `<span class="badge bg-warning text-dark shadow-sm py-1 px-2" style="font-size:0.65rem;">Tvk: -${fatura.tevkifatTutar.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ${sembol}</span>`;
+
+          // Tevkifat veya Stopaj varsa Açıklama alanına dikey düzeni bozmadan ekle
+          let aciklamaAlandakiVergi = vergiGosterim ? `<div class="mt-1">${vergiGosterim}</div>` : '';
 
           let html = '';
           if(fatura.tur === 'SMM_Gider') {
@@ -1352,15 +1355,15 @@
           } else {
               html = `<tr>
                   <td>${fatura.faturaNo}</td><td>${fatura.tarih}</td><td><span class="text-truncate d-inline-block" style="max-width: 150px;">${fatura.cariUnvan}</span></td>
-                  <td>${aciklamaT}</td>
+                  <td>${aciklamaT}${aciklamaAlandakiVergi}</td>
                   <td>${fatura.tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${sembol}</td>
-                  <td>${vergiGosterim || '-'}</td>
                   <td>${fatura.kdvTutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${sembol}</td>
                   <td class="fw-bold text-dark text-end">${fatura.toplamTutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${sembol}</td><td>${islemButonlari}</td></tr>`;
               if(fatura.tur === 'Ihracat' || fatura.tur === 'Satis') iTbody.innerHTML += html; 
               else if(fatura.tur === 'YerelSatis') yTbody.innerHTML += html; 
               else aTbody.innerHTML += html;
           }
+          
       });
       if(iTbody.innerHTML === '') iTbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Kayıtlı hizmet ihracatı faturası yok.</td></tr>';
       if(yTbody.innerHTML === '') yTbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Kayıtlı yerel satış faturası yok.</td></tr>';
@@ -2183,7 +2186,7 @@
               else { cikisStr = `${h.tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${birim}`; toplamCikis += h.tutar; }
               
               let aksiyonButonlari = `
-                  <button class="btn btn-sm btn-outline-primary py-0 me-1" onclick="islemDuzenleAc('${h.id}')" title="İşlemi Değiştir / Eşleştir"><i class="fas fa-edit"></i> Değiştir</button>
+                  <button class="btn btn-sm btn-outline-primary py-0 me-1" onclick="islemDuzenleAc('${h.id}')" title="İşlemi Değiştir / Eşleştir"><i class="fas fa-edit"></i> </button>
                   <button class="btn btn-sm btn-outline-danger py-0" onclick="window.islemSil('${h.id}', '${h.cariId}', '${h.bankaId}', '${h.tur}', ${h.tutar})" title="İşlemi İptal Et"><i class="fas fa-trash"></i></button>
               `;
               
@@ -3948,7 +3951,7 @@
           let tasimaOzet = op.tasimaTuru === 'Denizyolu' ? (op.bookingNo || op.konteynerNo || op.gemiAdi || '-') : (op.tasimaTuru === 'Havayolu' ? (op.ucusNo || '-') : ((op.yukNo || '') + ' ' + (op.seferNo || '')));
           
           let yuzdeDeger = op.nalunTutar > 0 ? (op.komisyonTutar / op.nalunTutar) * 100 : 0;
-          let durumBadge = op.tahsilEdildi ? '<span class="badge bg-success"><i class="fas fa-check"></i> Kapandı</span>' : '<span class="badge bg-warning text-dark">Bekliyor</span>';
+          let durumBadge = op.tahsilEdildi ? '<span class="badge bg-success"><i class="fas fa-check"></i> </span>' : '<span class="badge bg-warning text-dark">Bekliyor</span>';
 
           let tr = `
               <tr>
@@ -4342,36 +4345,36 @@
                         <!-- Alt 4'lü Kompakt Grid -->
                         <div class="row g-2">
                             <div class="col-xl-3 col-lg-6 col-md-6">
-                                <div class="premium-card p-2.5 px-3 border-start border-3" style="border-left-color: #2c3e50 !important;">
-                                    <div class="d-flex justify-content-between align-items-center mb-2 border-bottom pb-1">
-                                        <h6 class="fw-bold mb-0 text-dark" style="font-size: 0.72rem;">Likidite (Kasa/Banka)</h6>
+                                <div class="premium-card p-3 border-start border-3" style="border-left-color: #2c3e50 !important;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2 border-bottom pb-2">
+                                        <h6 class="fw-bold mb-0 text-dark" style="font-size: 0.88rem;">Likidite (Kasa/Banka)</h6>
                                     </div>
                                     <div id="dash_kasa_listesi" class="px-1"></div>
                                 </div>
                             </div>
                             
                             <div class="col-xl-3 col-lg-6 col-md-6">
-                                <div class="premium-card p-2.5 px-3 border-start border-3" style="border-left-color: #8b5cf6 !important;">
-                                    <div class="d-flex justify-content-between align-items-center mb-2 border-bottom pb-1">
-                                        <h6 class="fw-bold mb-0" style="color: #8b5cf6; font-size: 0.72rem;">Ortaklar Durumu</h6>
+                                <div class="premium-card p-3 border-start border-3" style="border-left-color: #8b5cf6 !important;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2 border-bottom pb-2">
+                                        <h6 class="fw-bold mb-0" style="color: #8b5cf6; font-size: 0.88rem;">Ortaklar Durumu</h6>
                                     </div>
                                     <div id="dash_ortak_rozetler" class="d-flex flex-column gap-1 px-1"></div>
                                 </div>
                             </div>
 
                             <div class="col-xl-3 col-lg-6 col-md-6">
-                                <div class="premium-card p-2.5 px-3 border-start border-3" style="border-left-color: #f59e0b !important;">
-                                    <div class="d-flex justify-content-between align-items-center mb-2 border-bottom pb-1">
-                                        <h6 class="fw-bold mb-0 text-warning" style="font-size: 0.72rem;">Alacaklar (Top 5)</h6>
+                                <div class="premium-card p-3 border-start border-3" style="border-left-color: #f59e0b !important;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2 border-bottom pb-2">
+                                        <h6 class="fw-bold mb-0 text-warning" style="font-size: 0.88rem;">Alacaklar (Top 5)</h6>
                                     </div>
                                     <div id="dash_alacak_rozetler" class="d-flex flex-column gap-1 px-1"></div>
                                 </div>
                             </div>
 
                             <div class="col-xl-3 col-lg-6 col-md-6">
-                                <div class="premium-card p-2.5 px-3 border-start border-3" style="border-left-color: #ef4444 !important;">
-                                    <div class="d-flex justify-content-between align-items-center mb-2 border-bottom pb-1">
-                                        <h6 class="fw-bold mb-0 text-danger" style="font-size: 0.72rem;">Borçlar (Top 5)</h6>
+                                <div class="premium-card p-3 border-start border-3" style="border-left-color: #ef4444 !important;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2 border-bottom pb-2">
+                                        <h6 class="fw-bold mb-0 text-danger" style="font-size: 0.88rem;">Borçlar (Top 5)</h6>
                                     </div>
                                     <div id="dash_borc_rozetler" class="d-flex flex-column gap-1 px-1"></div>
                                 </div>
@@ -5583,7 +5586,7 @@
                                             <th class="text-end">Nalun</th><th class="text-end text-success">Komisyon</th>
                                             <th class="text-end fw-bold">Toplam</th>
                                             <th class="text-end text-danger">TL Karşılığı</th>
-                                            <th class="text-center"><i class="fas fa-lock"></i> Durum</th>
+                                            <th class="text-center"><i class="fas fa-lock"></i> Kapandı</th>
                                             <th class="text-center">İşlemler</th>
                                         </tr>
                                     </thead>
