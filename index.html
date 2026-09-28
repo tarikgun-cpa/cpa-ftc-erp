@@ -539,17 +539,51 @@
     if(!document.getElementById('dash_kasa_listesi')) return;
     let seciliYil = document.getElementById('dash_yil_secici') ? document.getElementById('dash_yil_secici').value : new Date().getFullYear().toString();
 
-    let usdKur = parseFloat(document.getElementById('dash_usd_kur') ? document.getElementById('dash_usd_kur').value : (localStorage.getItem('ev_usd_try') || 34.50));
-    let eurKur = parseFloat(document.getElementById('dash_eur_kur') ? document.getElementById('dash_eur_kur').value : (localStorage.getItem('ev_eur_try') || 38.20));
+    // NaN Güvenlik Korumalı Kur Okuma
+    let rawUsd = document.getElementById('dash_usd_kur') ? document.getElementById('dash_usd_kur').value : localStorage.getItem('ev_usd_try');
+    let rawEur = document.getElementById('dash_eur_kur') ? document.getElementById('dash_eur_kur').value : localStorage.getItem('ev_eur_try');
+    
+    let usdKur = parseFloat(rawUsd);
+    if(isNaN(usdKur) || usdKur <= 0) usdKur = 34.50;
+    
+    let eurKur = parseFloat(rawEur);
+    if(isNaN(eurKur) || eurKur <= 0) eurKur = 38.20;
 
-    // Banka ve Kasa
+    // Banka, Kasa ve Kredi Kartı Ayrıştırma
     let bankalarHtml = '';
+    let toplamNakitTry = 0;
+    let toplamKkBorcTry = 0;
+
     bankaListesi.forEach(b => {
+        let bakiye = Number(b.bakiye) || 0;
         let sembol = b.paraBirimi === 'USD' ? '$' : (b.paraBirimi === 'EUR' ? '€' : '₺');
-        bankalarHtml += `<div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
-            <span class="text-truncate text-secondary" style="font-size: 0.85rem;">${b.hesapAdi}</span>
-            <strong class="text-dark" style="font-size: 0.95rem;">${b.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2})} <span class="text-muted fw-normal">${sembol}</span></strong></div>`;
+        let kurCarpan = b.paraBirimi === 'USD' ? usdKur : (b.paraBirimi === 'EUR' ? eurKur : 1);
+        let bakiyeTry = Math.abs(bakiye) * kurCarpan;
+        let isKK = b.tur === 'Kredi Karti';
+
+        if(isKK) {
+            toplamKkBorcTry += bakiyeTry;
+            bankalarHtml += `<div class="d-flex justify-content-between align-items-center border-bottom pb-1 mb-1">
+                <span class="text-truncate text-danger fw-medium" style="font-size: 0.78rem;" title="${b.hesapAdi}"><i class="fas fa-credit-card me-1"></i>${b.hesapAdi}</span>
+                <strong class="text-danger" style="font-size: 0.82rem;">-${Math.abs(bakiye).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} <span class="text-danger fw-normal">${sembol}</span></strong></div>`;
+        } else {
+            if(bakiye >= 0) toplamNakitTry += bakiyeTry;
+            else toplamNakitTry -= bakiyeTry;
+
+            let renkClass = bakiye < 0 ? 'text-danger' : 'text-dark';
+            bankalarHtml += `<div class="d-flex justify-content-between align-items-center border-bottom pb-1 mb-1">
+                <span class="text-truncate text-secondary" style="font-size: 0.78rem;" title="${b.hesapAdi}">${b.hesapAdi}</span>
+                <strong class="${renkClass}" style="font-size: 0.82rem;">${bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} <span class="text-muted fw-normal">${sembol}</span></strong></div>`;
+        }
     });
+
+    let likiditeOzetBant = `
+        <div class="p-2 mb-2 rounded bg-light border d-flex justify-content-between align-items-center" style="font-size:0.72rem;">
+            <div><span class="text-muted d-block" style="font-size:0.6rem;">TOPLAM NAKİT</span><strong class="text-success">${toplamNakitTry.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ₺</strong></div>
+            <div class="border-start ps-2 text-end"><span class="text-muted d-block" style="font-size:0.6rem;">KK BORCU</span><strong class="text-danger">-${toplamKkBorcTry.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ₺</strong></div>
+        </div>`;
+
+    document.getElementById('dash_kasa_listesi').innerHTML = bankaListesi.length > 0 ? (likiditeOzetBant + bankalarHtml) : '<span class="text-muted small">Kayıtlı hesap yok.</span>';
 
     // Cari Rozetler (Top 5 ve Toplam Hesaplama)
     let alacaklar = []; let borclar = []; let ortaklar = [];
@@ -557,7 +591,7 @@
     let toplamMusteriAlacakTry = 0; let toplamTedarikciAvansTry = 0;
 
     cariListesi.forEach(c => {
-        let bakiye = c.bakiye || 0;
+        let bakiye = Number(c.bakiye) || 0;
         let sembol = c.paraBirimi === 'USD' ? '$' : (c.paraBirimi === 'EUR' ? '€' : '₺');
         let kurCarpan = c.paraBirimi === 'USD' ? usdKur : (c.paraBirimi === 'EUR' ? eurKur : 1);
         let bakiyeTry = Math.abs(bakiye) * kurCarpan;
@@ -582,14 +616,13 @@
     borclar.sort((a,b) => b.bakiyeTry - a.bakiyeTry);
     ortaklar.sort((a,b) => b.bakiyeTry - a.bakiyeTry);
 
-    // Alacaklar ve Avansları iki ayrı listeye ayır ve sırala
     let musteriAlacakListesi = alacaklar.filter(c => c.grup !== 'Satici').sort((a,b) => b.bakiyeTry - a.bakiyeTry);
     let tedarikciAvansListesi = alacaklar.filter(c => c.grup === 'Satici').sort((a,b) => b.bakiyeTry - a.bakiyeTry);
 
     let alacakHtml = `
         <div class="mb-1 pb-1 border-bottom border-light">
             <small class="text-muted d-block" style="font-size:0.65rem;">Genel Toplam Bakiye (Alacak + Avans)</small>
-            <h6 class="fw-bold text-success mb-0">${toplamAlacakTry.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</h6>
+            <h6 class="fw-bold text-success mb-0">${toplamAlacakTry.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ₺</h6>
         </div>`;
 
     if (musteriAlacakListesi.length > 0) {
@@ -598,7 +631,7 @@
                 <span class="badge bg-success shadow-sm px-2 py-1" style="font-size:0.68rem; font-weight: 600;"><i class="fas fa-arrow-down me-1"></i>ALACAK (Müşteri)</span>
                 <strong class="text-success fw-bold" style="font-size:0.82rem;">${toplamMusteriAlacakTry.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ₺</strong>
             </div>`;
-        musteriAlacakListesi.slice(0, 3).forEach(c => {
+        musteriAlacakListesi.slice(0, 5).forEach(c => {
             alacakHtml += `<div class="d-flex justify-content-between align-items-center pb-1 mb-1 border-bottom border-light">
                 <div class="text-truncate text-secondary d-flex align-items-center" style="font-size: 0.78rem; max-width: 155px;" title="${c.unvan}"><span class="text-truncate">${c.unvan}</span></div>
                 <strong class="text-dark" style="font-size: 0.82rem;">${c.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} <span class="text-muted fw-normal">${c.sembol}</span></strong></div>`;
@@ -611,32 +644,43 @@
                 <span class="badge bg-primary shadow-sm px-2 py-1" style="font-size:0.68rem; font-weight: 600; background-color: #2563eb !important;"><i class="fas fa-hand-holding-usd me-1"></i>AVANS (Tedarikçi)</span>
                 <strong class="fw-bold" style="font-size:0.82rem; color: #2563eb;">${toplamTedarikciAvansTry.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ₺</strong>
             </div>`;
-        tedarikciAvansListesi.slice(0, 3).forEach(c => {
+        tedarikciAvansListesi.slice(0, 5).forEach(c => {
             alacakHtml += `<div class="d-flex justify-content-between align-items-center pb-1 mb-1 border-bottom border-light">
                 <div class="text-truncate text-secondary d-flex align-items-center" style="font-size: 0.78rem; max-width: 155px;" title="${c.unvan}"><span class="text-truncate">${c.unvan}</span></div>
                 <strong class="text-dark" style="font-size: 0.82rem;">${c.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} <span class="text-muted fw-normal">${c.sembol}</span></strong></div>`;
         });
     }
 
-    let borcHtml = `<div class="mb-1 pb-1 border-bottom border-light"><small class="text-muted d-block" style="font-size:0.65rem;">Toplam Tahmini Borç</small><h6 class="fw-bold text-danger mb-0">${toplamBorcTry.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</h6></div>`;
-    let ortakHtml = `<div class="mb-1 pb-1 border-bottom border-light"><small class="text-muted d-block" style="font-size:0.65rem;">Ortaklar Net Durum</small><h6 class="fw-bold ${ortakToplamTry >= 0 ? 'text-success' : 'text-danger'} mb-0">${Math.abs(ortakToplamTry).toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</h6></div>`;
+    let borcHtml = `<div class="mb-1 pb-1 border-bottom border-light"><small class="text-muted d-block" style="font-size:0.65rem;">Toplam Tahmini Borç</small><h6 class="fw-bold text-danger mb-0">${toplamBorcTry.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ₺</h6></div>`;
+    let ortakHtml = `<div class="mb-1 pb-1 border-bottom border-light"><small class="text-muted d-block" style="font-size:0.65rem;">Ortaklar Net Durum</small><h6 class="fw-bold ${ortakToplamTry >= 0 ? 'text-success' : 'text-danger'} mb-0">${Math.abs(ortakToplamTry).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ₺</h6></div>`;
 
     borclar.slice(0, 5).forEach(c => {
         borcHtml += `<div class="d-flex justify-content-between align-items-center pb-1 mb-1 border-bottom border-light">
             <span class="text-truncate text-secondary" style="font-size: 0.75rem; max-width: 140px;" title="${c.unvan}">${c.unvan}</span>
-            <strong class="text-dark" style="font-size: 0.8rem;">${c.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2})} <span class="text-muted fw-normal">${c.sembol}</span></strong></div>`;
+            <strong class="text-dark" style="font-size: 0.8rem;">${c.bakiye.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} <span class="text-muted fw-normal">${c.sembol}</span></strong></div>`;
     });
     ortaklar.slice(0, 5).forEach(c => {
         let renk = c.bakiye >= 0 ? 'text-success' : 'text-danger';
         ortakHtml += `<div class="d-flex justify-content-between align-items-center pb-1 mb-1 border-bottom border-light">
             <span class="text-truncate text-secondary" style="font-size: 0.75rem; max-width: 140px;" title="${c.unvan}">${c.unvan}</span>
-            <strong class="${renk}" style="font-size: 0.8rem;">${Math.abs(c.bakiye).toLocaleString('tr-TR', {minimumFractionDigits: 2})} <span class="text-muted fw-normal">${c.sembol}</span></strong></div>`;
+            <strong class="${renk}" style="font-size: 0.8rem;">${Math.abs(c.bakiye).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} <span class="text-muted fw-normal">${c.sembol}</span></strong></div>`;
     });
 
-    document.getElementById('dash_kasa_listesi').innerHTML = bankalarHtml || '<span class="text-muted small">Kayıtlı veri yok.</span>';
     document.getElementById('dash_alacak_rozetler').innerHTML = alacaklar.length > 0 ? alacakHtml : '<span class="text-muted small">Alacak bulunmuyor.</span>';
     document.getElementById('dash_borc_rozetler').innerHTML = borclar.length > 0 ? borcHtml : '<span class="text-muted small">Borç bulunmuyor.</span>';
     if(document.getElementById('dash_ortak_rozetler')) document.getElementById('dash_ortak_rozetler').innerHTML = ortaklar.length > 0 ? ortakHtml : '<span class="text-muted small">Ortak bulunmuyor.</span>';
+
+    // FİNANSAL ORAN HESAPLAMALARI
+    let alacakBorcOrani = toplamBorcTry > 0 ? (toplamAlacakTry / toplamBorcTry) : (toplamAlacakTry > 0 ? 999 : 0);
+    let toplamYukumlulukTry = toplamBorcTry + toplamKkBorcTry;
+    let likiditeKarsilamaOrani = toplamYukumlulukTry > 0 ? (toplamNakitTry / toplamYukumlulukTry) : (toplamNakitTry > 0 ? 999 : 0);
+
+    if(document.getElementById('dash_alacak_borc_orani')) {
+        document.getElementById('dash_alacak_borc_orani').innerText = alacakBorcOrani === 999 ? '∞' : alacakBorcOrani.toFixed(2);
+    }
+    if(document.getElementById('dash_likidite_karsilama_orani')) {
+        document.getElementById('dash_likidite_karsilama_orani').innerText = likiditeKarsilamaOrani === 999 ? '100%' : `%${(likiditeKarsilamaOrani * 100).toFixed(0)}`;
+    }
 
     // Kâr/Zarar Hesaplama
     let aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
@@ -644,14 +688,13 @@
     let giderDagilimi = {};
     let gelirDagilimi = {};
 
-    // 1. Faturalar (Sadece Tedarikçi ve Satışlar - Matrah Üzerinden)
     faturaListesi.forEach(f => {
         if(!f.tarih) return;
         let [y, m] = f.tarih.split('-');
         if(y === seciliYil) { 
             let ayIndex = parseInt(m) - 1;
             let kurCarpan = f.paraBirimi === 'USD' ? usdKur : (f.paraBirimi === 'EUR' ? eurKur : 1);
-            let tutarTry = f.tutar * kurCarpan; 
+            let tutarTry = (Number(f.tutar) || 0) * kurCarpan; 
             
            if(f.tur === 'Satis' || f.tur === 'Ihracat' || f.tur === 'YerelSatis') {
                 aylikVeri[ayIndex].gelir += tutarTry;
@@ -668,16 +711,15 @@
         }
     });
 
-    // 2. Banka İşlemleri (Maaş, Vergi, Faiz, Masraf, Carisiz)
     islemListesi.forEach(i => {
-        let dStr = i.tarih ? new Date(i.tarih.seconds * 1000).toISOString().split('T')[0] : '';
+        let dStr = i.tarih ? new Date(i.tarih.seconds ? i.tarih.seconds * 1000 : i.tarih).toISOString().split('T')[0] : '';
         if(!dStr) return;
         let [y, m] = dStr.split('-');
         if(y === seciliYil) {
             let ayIndex = parseInt(m) - 1;
             let b = bankaListesi.find(x => x.id === i.bankaId);
             let kurCarpan = b ? (b.paraBirimi === 'USD' ? usdKur : (b.paraBirimi === 'EUR' ? eurKur : 1)) : 1;
-            let tutarTry = i.tutar * kurCarpan;
+            let tutarTry = (Number(i.tutar) || 0) * kurCarpan;
             
             let gercekYon = i.yon ? i.yon : (['Tahsilat', 'Faiz_Gelir'].includes(i.tur) ? 'Tahsilat' : 'Odeme');
 
@@ -717,9 +759,9 @@
             let renk = net > 0 ? 'text-success' : (net < 0 ? 'text-danger' : 'text-muted');
             kzHtml += `<tr>
                 <td class="text-muted fw-bold small">${aylar[index]}</td>
-                <td class="text-end text-success small">+${veri.gelir.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td>
-                <td class="text-end text-danger small">-${veri.gider.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td>
-                <td class="text-end fw-bold ${renk} small">${net > 0 ? '+' : ''}${net.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td>
+                <td class="text-end text-success small">+${veri.gelir.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ₺</td>
+                <td class="text-end text-danger small">-${veri.gider.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ₺</td>
+                <td class="text-end fw-bold ${renk} small">${net > 0 ? '+' : ''}${net.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ₺</td>
             </tr>`;
         }
     });
@@ -730,9 +772,9 @@
         let genelRenk = genelNet > 0 ? 'text-success' : (genelNet < 0 ? 'text-danger' : 'text-dark');
         kzHtml += `<tr class="table-light border-top border-2 border-dark">
             <td class="fw-bold small">GENEL TOPLAM</td>
-            <td class="text-end text-success fw-bold small">+${toplamGelir.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td>
-            <td class="text-end text-danger fw-bold small">-${toplamGider.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td>
-            <td class="text-end fw-bold ${genelRenk} fs-6">${genelNet > 0 ? '+' : ''}${genelNet.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</td>
+            <td class="text-end text-success fw-bold small">+${toplamGelir.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ₺</td>
+            <td class="text-end text-danger fw-bold small">-${toplamGider.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ₺</td>
+            <td class="text-end fw-bold ${genelRenk} fs-6">${genelNet > 0 ? '+' : ''}${genelNet.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ₺</td>
         </tr>`;
     }
     if(document.getElementById('dash_kar_zarar')) document.getElementById('dash_kar_zarar').innerHTML = kzHtml;
@@ -752,7 +794,7 @@
     `;
     if(document.getElementById('dash_temettu_alani')) document.getElementById('dash_temettu_alani').innerHTML = temettuHtml;
 
-    // Gider Kategorilerini Çiz
+    // Gider ve Gelir Kategorileri Sentezi
     let kategoriHtml = '';
     let siralama = Object.entries(giderDagilimi).sort((a,b) => b[1] - a[1]);
     let grafikKategorileri = [];
@@ -765,7 +807,7 @@
         <div class="mb-3">
             <div class="d-flex justify-content-between mb-1">
                 <span class="small fw-medium" style="color:#334155;">${kat}</span>
-                <span class="small text-danger fw-bold">${tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</span>
+                <span class="small text-danger fw-bold">${tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ₺</span>
             </div>
             <div class="progress" style="height: 6px; background-color: #f1f5f9;">
                 <div class="progress-bar bg-danger" role="progressbar" style="width: ${yuzde}%"></div>
@@ -775,7 +817,6 @@
     if(kategoriHtml === '') kategoriHtml = '<span class="text-muted small">Bu yıla ait gider verisi bulunamadı.</span>';
     if(document.getElementById('dash_gider_kategorileri')) document.getElementById('dash_gider_kategorileri').innerHTML = kategoriHtml;
     
-    // Gelir Kategorilerini Çiz
     let gelirKategoriHtml = '';
     let gelirSiralama = Object.entries(gelirDagilimi).sort((a,b) => b[1] - a[1]);
     let gelirGrafikKategorileri = [];
@@ -788,7 +829,7 @@
         <div class="mb-3">
             <div class="d-flex justify-content-between mb-1">
                 <span class="small fw-medium" style="color:#334155;">${kat}</span>
-                <span class="small text-success fw-bold">${tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2})} ₺</span>
+                <span class="small text-success fw-bold">${tutar.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ₺</span>
             </div>
             <div class="progress" style="height: 6px; background-color: #f1f5f9;">
                 <div class="progress-bar bg-success" role="progressbar" style="width: ${yuzde}%"></div>
@@ -798,7 +839,7 @@
     if(gelirKategoriHtml === '') gelirKategoriHtml = '<span class="text-muted small">Bu yıla ait gelir verisi bulunamadı.</span>';
     if(document.getElementById('dash_gelir_kategorileri')) document.getElementById('dash_gelir_kategorileri').innerHTML = gelirKategoriHtml;
 
-    // --- GRAFİKLERİ ÇİZ (CHART.JS) ---
+    // Grafik Çizimleri
     let ctxPnl = document.getElementById('pnlChart');
     if(ctxPnl) {
         if(window.pnlChartInstance) window.pnlChartInstance.destroy();
@@ -822,10 +863,7 @@
             ctxExp.style.display = 'block';
             window.expChartInstance = new Chart(ctxExp, {
                 type: 'doughnut',
-                data: {
-                    labels: grafikKategorileri,
-                    datasets: [{ data: grafikGiderDegerleri, backgroundColor: ['#ef4444', '#f97316', '#f59e0b', '#3b82f6', '#8b5cf6', '#64748b'], borderWidth: 0 }]
-                },
+                data: { labels: grafikKategorileri, datasets: [{ data: grafikGiderDegerleri, backgroundColor: ['#ef4444', '#f97316', '#f59e0b', '#3b82f6', '#8b5cf6', '#64748b'], borderWidth: 0 }] },
                 options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { legend: { display: false } } }
             });
         } else { ctxExp.style.display = 'none'; }
@@ -838,37 +876,13 @@
             ctxInc.style.display = 'block';
             window.incChartInstance = new Chart(ctxInc, {
                 type: 'doughnut',
-                data: {
-                    labels: gelirGrafikKategorileri,
-                    datasets: [{ data: gelirGrafikDegerleri, backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#0ea5e9', '#64748b'], borderWidth: 0 }]
-                },
+                data: { labels: gelirGrafikKategorileri, datasets: [{ data: gelirGrafikDegerleri, backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#0ea5e9', '#64748b'], borderWidth: 0 }] },
                 options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { legend: { display: false } } }
             });
         } else { ctxInc.style.display = 'none'; }
     }
 
     if(typeof window.tickerGuncelle === 'function') window.tickerGuncelle();
-  };
-
-  // ---------------- KAYAR BANT (TICKER) İŞLEMLERİ ----------------
-  window.notEkleAc = function() {
-      window.notListesiniCiz();
-      new bootstrap.Modal(document.getElementById('notlarModal')).show();
-  };
-
-  window.notListesiniCiz = function() {
-      let liste = document.getElementById('notlar_listesi');
-      if(!liste) return;
-      liste.innerHTML = '';
-      panoNotlari.forEach((not, index) => {
-          liste.innerHTML += `
-              <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                  <span class="small text-dark">${not}</span>
-                  <button class="btn btn-sm btn-outline-danger py-0" onclick="notSil(${index})"><i class="fas fa-trash"></i></button>
-              </li>
-          `;
-      });
-      if(panoNotlari.length === 0) liste.innerHTML = '<li class="list-group-item px-0 text-muted small border-0">Aktif notunuz bulunmuyor.</li>';
   };
 
   window.yeniNotKaydet = async function() {
@@ -4327,17 +4341,36 @@
                 </div>
 
                 <div class="tab-content">
-                    <!-- SEKME 1: DETAYLI BİLANÇO VE KASA (Varsayılan Açık) -->
+                    <!-- SEKME 1: DETAYLI BİLANÇO VE KASA -->
                     <div class="tab-pane fade show active" id="tab-bilanco" role="tabpanel">
                         
-                        <!-- Üst Kâr Kartı -->
+                        <!-- Üst Kâr Kartı ve Finansal Oranlar -->
                         <div class="row g-2 mb-2">
-                            <div class="col-12">
-                                <div class="premium-card p-2 px-3 border-start border-3" style="border-left-color: #10b981 !important;">
+                            <div class="col-md-6">
+                                <div class="premium-card p-2 px-3 border-start border-3 h-100" style="border-left-color: #10b981 !important;">
                                     <div class="d-flex justify-content-between align-items-center mb-1">
                                         <h6 class="fw-bold mb-0 text-success" style="font-size: 0.7rem;"><i class="fas fa-coins me-2"></i>Kurumsal Kâr & Temettü Özeti</h6>
                                     </div>
                                     <div id="dash_temettu_alani" class="px-1"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="premium-card p-2 px-3 border-start border-3 h-100" style="border-left-color: #0284c7 !important;">
+                                    <h6 class="fw-bold mb-2" style="color: #0284c7; font-size: 0.7rem;"><i class="fas fa-calculator me-2"></i>Finansal Oranlar & Sağlık Göstergeleri</h6>
+                                    <div class="row g-2 text-center pt-1">
+                                        <div class="col-6">
+                                            <div class="p-2 border rounded bg-light">
+                                                <span class="text-muted d-block" style="font-size:0.6rem;">ALACAK / BORÇ ORANI</span>
+                                                <strong id="dash_alacak_borc_orani" class="fs-6 text-dark fw-bold">0.00</strong>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="p-2 border rounded bg-light">
+                                                <span class="text-muted d-block" style="font-size:0.6rem;">LİKİDİTE BORÇ KARŞILAMA</span>
+                                                <strong id="dash_likidite_karsilama_orani" class="fs-6 text-dark fw-bold">%0</strong>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
