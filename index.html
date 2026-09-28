@@ -539,15 +539,22 @@
     if(!document.getElementById('dash_kasa_listesi')) return;
     let seciliYil = document.getElementById('dash_yil_secici') ? document.getElementById('dash_yil_secici').value : new Date().getFullYear().toString();
 
+    // Güvenli Sayı Çevirici (Virgül ve NaN Korumalı)
+    const safeFloat = (val, def = 0) => {
+        if (val === null || val === undefined) return def;
+        let n = parseFloat(String(val).replace(',', '.'));
+        return isNaN(n) ? def : n;
+    };
+
     // NaN Güvenlik Korumalı Kur Okuma
     let rawUsd = document.getElementById('dash_usd_kur') ? document.getElementById('dash_usd_kur').value : localStorage.getItem('ev_usd_try');
     let rawEur = document.getElementById('dash_eur_kur') ? document.getElementById('dash_eur_kur').value : localStorage.getItem('ev_eur_try');
     
-    let usdKur = parseFloat(rawUsd);
-    if(isNaN(usdKur) || usdKur <= 0) usdKur = 34.50;
+    let usdKur = safeFloat(rawUsd, 34.50);
+    if(usdKur <= 0) usdKur = 34.50;
     
-    let eurKur = parseFloat(rawEur);
-    if(isNaN(eurKur) || eurKur <= 0) eurKur = 38.20;
+    let eurKur = safeFloat(rawEur, 38.20);
+    if(eurKur <= 0) eurKur = 38.20;
 
     // Banka, Kasa ve Kredi Kartı Ayrıştırma
     let bankalarHtml = '';
@@ -712,8 +719,17 @@
     });
 
     islemListesi.forEach(i => {
-        let dStr = i.tarih ? new Date(i.tarih.seconds ? i.tarih.seconds * 1000 : i.tarih).toISOString().split('T')[0] : '';
+        let dStr = '';
+        if (i.tarih) {
+            try {
+                let dt = i.tarih.seconds ? new Date(i.tarih.seconds * 1000) : new Date(i.tarih);
+                if (!isNaN(dt.getTime())) {
+                    dStr = dt.toISOString().split('T')[0];
+                }
+            } catch(e) { dStr = ''; }
+        }
         if(!dStr) return;
+
         let [y, m] = dStr.split('-');
         if(y === seciliYil) {
             let ayIndex = parseInt(m) - 1;
@@ -3690,9 +3706,9 @@
               <div class="row">
                   <h6 class="border-bottom pb-2 text-primary"><i class="fas fa-info-circle"></i> Resmi Kimlik Bilgileri</h6>
                   <div class="col-md-6 mb-3"><label class="text-muted small mb-1">Kısa Ünvan</label><div class="d-flex align-items-center"><strong class="fs-6 me-3">${v.unvan || '-'}</strong></div></div>
-                  <div class="col-md-6 mb-3"><label class="text-muted small mb-1">PIB (Vergi Numarası)</label><div class="d-flex align-items-center"><strong class="fs-6 me-3">${v.pib || '-'}</strong></div></div>
+                  <div class="col-md-6 mb-3"><label class="text-muted small mb-1">Vergi Numarası</label><div class="d-flex align-items-center"><strong class="fs-6 me-3">${v.pib || '-'}</strong></div></div>
                   <div class="col-md-12 mb-3"><label class="text-muted small mb-1">Tam Resmi Ünvan</label><div class="d-flex align-items-center"><strong class="fs-6 me-3">${v.tamUnvan || '-'}</strong></div></div>
-                  <div class="col-md-6 mb-3"><label class="text-muted small mb-1">Matični Broj (Sicil No)</label><div class="d-flex align-items-center"><strong class="fs-6 me-3">${v.sicilNo || '-'}</strong></div></div>
+                  <div class="col-md-6 mb-3"><label class="text-muted small mb-1">Sicil No</label><div class="d-flex align-items-center"><strong class="fs-6 me-3">${v.sicilNo || '-'}</strong></div></div>
                   <div class="col-md-6 mb-3"><label class="text-muted small mb-1">Kayıtlı Adres</label><div class="d-flex align-items-center"><strong class="fs-6 me-3">${v.adres || '-'}</strong></div></div>
                   <div class="col-md-6 mb-3"><label class="text-muted small mb-1">Ana Faaliyet</label><div><strong class="fs-6">${v.faaliyet || '-'}</strong></div></div>
                   <div class="col-md-6 mb-3"><label class="text-muted small mb-1">İcra Direktörü / Sermaye</label><div><strong class="fs-6">${v.direktor || '-'} / ${v.sermaye || '-'} €</strong></div></div>
@@ -4482,6 +4498,12 @@
                 </div>
             `;
             setTimeout(() => { 
+                // Hafızadaki son kurları inputlara geri yükle
+                let savedUsd = localStorage.getItem('ev_usd_try');
+                let savedEur = localStorage.getItem('ev_eur_try');
+                if(savedUsd && document.getElementById('dash_usd_kur')) document.getElementById('dash_usd_kur').value = savedUsd;
+                if(savedEur && document.getElementById('dash_eur_kur')) document.getElementById('dash_eur_kur').value = savedEur;
+
                 if(typeof window.dashboardCiz === 'function') window.dashboardCiz(); 
                 if(typeof window.kurlariGuncelle === 'function') window.kurlariGuncelle(); 
             }, 50);
